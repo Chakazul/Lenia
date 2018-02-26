@@ -5,9 +5,9 @@ Fastest version, great tools for statistical analysis, but Matlab is proprietary
 
 ## JavaScript Version
 Original version, slow but with most features and longer list of life forms.
-![alt text](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript01.png "JavaScript version screen cap 1")
-![alt text](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript03.png "JavaScript version screen cap 3")
-![alt text](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript04.png "JavaScript version screen cap 4")
+![alt text](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript.png "JavaScript version screen cap 1")
+![alt text](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript2.png "JavaScript version screen cap 2")
+![alt text](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript3.png "JavaScript version screen cap 3")
 
 ## Jupyter Notebook Version
 Python version, No real-time interactivity.
