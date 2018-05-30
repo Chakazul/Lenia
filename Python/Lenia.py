@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -40,14 +39,14 @@ class Lenia:
 		elif k=='g': self.params['dt'] = self.params['dt'] / 2
 		elif k=='1': self.load_cells(1, multiply=4)
 		elif k=='2': self.load_cells(2, multiply=4)
-		elif k=='ctrl+c':
-			cells_list = np.rint(self.cells*100).astype(int).tolist()
+		elif k in ['ctrl+c', 'cmd+c']:
+			cells_list = np.rint(self.get_cropped(self.world)*100).astype(int).tolist()
 			data = {'name':self.name, 'params':self.params, 'cells':cells_list}
 			self.clip_st = json.dumps(data, separators=(',', ':'))
 			print(self.clip_st)
-			with open('animals.json', 'w') as file:
+			with open('last_animal.json', 'w') as file:
 				json.dump(data, file, separators=(',', ':'))
-		elif k=='ctrl+v':
+		elif k in ['ctrl+v', 'cmd+v']:
 			data = json.loads(self.clip_st)
 			self.name = data['name']
 			self.params = data['params']
@@ -97,7 +96,7 @@ class Lenia:
 		self.potential = np.roll(np.real(np.fft.ifft2(self.kernel_FFT * world_FFT)), MID, (0, 1))
 		dfunc = self.delta_func[self.params['dn']]
 		self.delta = dfunc(self.potential)
-		self.world = np.maximum(0, np.minimum(1, self.world + self.delta * self.params['dt']))
+		self.world = np.clip(self.world + self.delta * self.params['dt'], 0, 1)
 
 	def calc_kernel(self):
 		I = np.array([np.arange(SIZE),]*SIZE)
@@ -142,6 +141,12 @@ class Lenia:
 				cells2[i:h:n, j:w:n] = self.cells
 		self.cells = cells2
 		self.params['R'] = self.params['R'] * n
+
+	def get_cropped(self, A):
+		coords = np.argwhere(A > 0)
+		y0, x0 = coords.min(axis=0)
+		y1, x1 = coords.max(axis=0) + 1
+		return A[y0:y1, x0:x1]
 
 	def run(self):
 		while True:
