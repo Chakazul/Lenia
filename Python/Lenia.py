@@ -1,16 +1,18 @@
 import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import json
+from PIL import Image, ImageTk
+try:
+	import tkinter as tk
+except ImportError:
+	import Tkinter as tk
 
 global SIZE, MID
 SIZE = 1 << 8
 MID = int(SIZE / 2)
-BORDER = 0.03
+BORDER = 10
 
 class Lenia:
 	def __init__(self):
-		mpl.rcParams['toolbar'] = 'None'
 		self.is_run = True
 		self.is_once = False
 		self.kernel_core = {
@@ -24,14 +26,14 @@ class Lenia:
 		self.params = {'R':11, 'b':[1], 'm':0.15, 's':0.015, 'dt':0.1, 'kn':0, 'dn':0}
 		self.calc_kernel()
 		self.clear_world()
-		self.create_figure(self.world)
-		self.create_panel(0, 0, 0, self.world, 0, 1)
-		self.create_panel(1, 0, 1, self.potential, 0, 0.3)
-		self.create_panel(2, 1, 0, self.delta, -1, 1)
-		self.create_panel(3, 1, 1, self.kernel, 0, 1)
+		self.create_figure()
+		self.panel1 = self.create_panel(0, 0)
+		self.panel2 = self.create_panel(1, 0)
+		self.panel3 = self.create_panel(0, 1)
+		self.panel4 = self.create_panel(1, 1)
 
 	def key_press(self, event):
-		k = event.key.lower()
+		k = event.char.lower()
 		if k=='escape': plt.close()
 		elif k=='enter': self.is_run = not self.is_run
 		elif k==' ': self.is_once = not self.is_once
@@ -56,32 +58,56 @@ class Lenia:
 			self.add_cells(self.cells)
 		else: print(k)
 
-	def create_figure(self, A):
-		self.dpi = 80
-		self.img_size = np.shape(A)[0]/self.dpi
-		self.fig_size = self.img_size * 2 + BORDER * 3
-		self.fig = plt.figure(figsize=(self.fig_size, self.fig_size), dpi=self.dpi)
-		self.fig.canvas.set_window_title("Lenia")
-		self.fig.canvas.mpl_connect('key_press_event', self.key_press)
-		self.ax = [None] * 4
-		self.img = [None] * 4
+	def create_figure(self):
+		fig_size = SIZE * 2 + BORDER * 3
+		self.win = tk.Tk()
+		self.win.title('Lenia')
+		self.frame = tk.Frame(self.win, width=fig_size, height=fig_size)
+		# self.frame.bind("<KeyPress>", self.key_press)
+		self.frame.pack()
+		self.canvas = tk.Canvas(self.frame, width=fig_size, height=fig_size)
+		self.canvas.place(x=-1, y=-1)
+		self.jet = self.create_palette(256, np.array([[0,0,1],[0,0,2],[0,1,2],[0,2,2],[1,2,1],[2,2,0],[2,1,0],[2,0,0],[1,0,0]]))
 
-	def create_panel(self, i, c, r, A, vmin=0, vmax=1):
-		self.ax[i] = self.fig.add_axes([
-			((c*self.img_size+(c+1)*BORDER)) / self.fig_size, 
-			((r*self.img_size+(r+1)*BORDER)) / self.fig_size,
-			self.img_size / self.fig_size, self.img_size / self.fig_size])
-		self.ax[i].axis('off')
-		self.img[i] = self.ax[i].imshow(A, cmap='jet', interpolation='none', aspect=1, vmin=vmin, vmax=vmax)
-		self.fig.canvas.draw()
+	def create_panel(self, c, r):
+		buffer = np.uint8(np.zeros((SIZE,SIZE)))
+		img = Image.frombuffer('P', (SIZE,SIZE), buffer, 'raw', 'P', 0, 1)
+		photo = ImageTk.PhotoImage(image=img)
+		return self.canvas.create_image(c*SIZE+(c+1)*BORDER, r*SIZE+(r+1)*BORDER, image=photo, anchor=tk.NW)
+
+	def create_palette(self, nval, colors):
+		ncol = colors.shape[0]
+		colors = np.vstack(( colors, np.array([0,0,0]) ))
+		v = np.repeat(range(nval), 3)  # [0 0 0 1 1 1 ... 255 255 255]
+		i = np.array(list(range(3)) * nval)  # [0 1 2 0 1 2 ... 0 1 2]
+		k = v / (nval-1) * (ncol-1)  # interpolate between 0 .. ncol-1
+		k1 = k.astype(int)
+		c1 = colors[k1,i]
+		c2 = colors[k1+1,i]
+		c = (k-k1) * (c2-c1) + c1  # interpolate between c1 .. c2
+		return np.rint(c / 2 * 255).astype(int).tolist()
 
 	def show_world(self):
-		self.img[0].set_array(self.world)
-		self.img[1].set_array(self.potential)
-		self.img[2].set_array(self.delta)
-		if not self.kernel_updated:
-			self.img[3].set_array(self.kernel)
-			self.kernel_updated = True
+		buffer = np.uint8(self.world * 255)
+		img = Image.frombuffer('P', (SIZE,SIZE), buffer, 'raw', 'P', 0, 1)
+		# img.putpalette(self.jet)
+		photo = ImageTk.PhotoImage(image=img)
+		self.canvas.create_image(0, 0, image=photo, anchor=tk.NW)
+
+		# self.show_panel(self.panel1, self.world, 0, 1)
+		# # self.show_panel(self.panel2, self.potential, 0, 0.3)
+		# # self.show_panel(self.panel3, self.delta, -1, 1)
+		# if not self.kernel_updated:
+			# self.show_panel(self.panel4, self.kernel, 0, 1)
+			# self.kernel_updated = True
+		# # self.win.update()
+
+	def show_panel(self, panel, A, vmin=0, vmax=1):
+		buffer = np.uint8((A-vmin) / (vmax-vmin) * 255)
+		img = Image.frombuffer('P', (SIZE,SIZE), buffer, 'raw', 'P', 0, 1)
+		# img.putpalette(self.jet)
+		photo = ImageTk.PhotoImage(image=img)
+		self.canvas.itemconfig(panel, image=photo)
 
 	def kernel_shell(self, r):
 		k = len(self.params['b'])
@@ -148,18 +174,27 @@ class Lenia:
 		y1, x1 = coords.max(axis=0) + 1
 		return A[y0:y1, x0:x1]
 
+	def loop(self):
+		self.win.after(0, self.run)
+		self.win.protocol("WM_DELETE_WINDOW", self.on_closing)
+		self.win.mainloop()
+
+	def on_closing(self):
+		self.is_run = False
+		self.win.destroy()
+
 	def run(self):
 		while True:
 			if self.is_run or self.is_once:
 				self.calc_once()
 				self.show_world()
 				self.is_once = False
-			plt.pause(0.000000000001)
 
-lenia = Lenia()
-lenia.load_cells(1, multiply=4)
-lenia.run()
+if __name__ == '__main__':
+	lenia = Lenia()
+	lenia.load_cells(1, multiply=4)
+	lenia.loop()
 
 # GPU FFT
 # https://pythonhosted.org/pyfft/
-# http://arrayfire.org/docs/group__signal__func__fft2.htm
+# http://arrayfire.org/docs/group__signal__func__fft2.htms
