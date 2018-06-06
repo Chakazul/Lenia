@@ -36,10 +36,33 @@ def _IsZip(c):
 def _FromRepeatSt(st):
 	return 1 if st=='' else _FromZip(st) if len(st)==1 else _FromZip(st[0])*100+_FromZip(st[1])
 
-with open('animals_old.json', encoding='utf-8') as file:
+
+# with open('animals.json', encoding='utf-8') as file:
+	# data = json.load(file)
+# for d in data:
+	# if 'name' in d: print(d['name'])
+	# if 'cells' in d: d['cells'] = _unzip(d['cells'])
+# with open('animals2.json', 'w', encoding='utf-8') as file:
+	# json.dump(data, file, separators=(',', ':'), ensure_ascii=False, indent=2)
+
+# with open('animals.json', encoding='utf-8') as file:
+	# data = json.load(file)
+# with open('animals2.json', 'w', encoding='utf-8') as file:
+	# json.dump(data, file, separators=(',', ':'), ensure_ascii=False)
+# with open('animals2.json', 'r', encoding='utf-8') as file:
+	# d = file.read()
+# d = d.replace('},{', '},\n{') + '\n'
+# with open('animals3.json', 'w', encoding='utf-8') as file:
+	# file.write(d)
+
+with open('animals.json', encoding='utf-8') as file:
 	data = json.load(file)
 for d in data:
 	if 'name' in d: print(d['name'])
-	if 'cells' in d: d['cells'] = _unzip(d['cells'])
-with open('animals.json', 'w', encoding='utf-8') as file:
-	json.dump(data, file, separators=(',', ':'), ensure_ascii=False, indent=2)
+	if 'params' in d:
+		d['params']['T'] = int(1/d['params']['dt'])
+		d['params'] = {k:d['params'][k] for k in ('R','T','b','m','s','kn','gn')}
+st = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+st = st.replace('},{', '},\n{') + '\n'
+with open('animals2.json', 'w', encoding='utf-8') as file:
+	file.write(st)
