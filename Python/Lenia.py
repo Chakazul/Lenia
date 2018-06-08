@@ -25,6 +25,107 @@ FRAME_EXT = '.png'
 VIDEO_EXT = '.mp4'
 VIDEO_CODEC = 'mp4v'  # .avi *'DIVX' / .mp4 *'mp4v' *'avc1'
 
+class Board:
+	def __init__(self, size=None, data=None):
+		if size is not None:
+			new(size)
+		elif data is not None:
+			from_data(data)
+		else:
+			self.names = None
+			self.longname = ''
+			self.params = None
+			self.cells = None
+			self.size = None
+			self.mid = None
+		self.shift = [0, 0]
+		self.rotate = 0
+
+	def new(self, size):
+		self.size = size
+		self.mid = int(self.size / 2)
+		self.clear()
+
+	def from_data(self, data):
+		self.names = [data.get('code',''), data.get('name',''), data.get('cname','')]
+		self.longname = ' | '.join(filter(None, self.names))
+		self.params = data.get('params')
+		self.cells = data.get('cells')
+		if self.params is not None:
+			self.params['b'] = Board.st2fracs(self.params['b'])
+		if self.cells is not None:
+			self.cells = Board.rle2arr(self.cells)
+			self.size = self.cells.shape
+			self.mid = int(self.size / 2)
+		self.shift = [0, 0]
+		self.rotate = 0
+
+	def to_data(self, is_shorten=True):
+		rle_st = Board.arr2rle(cells, is_shorten)
+		params2 = self.params.copy()
+		params2['b'] = Board.fracs2st(self.params['b'])
+		data = {'code':self.names[0], 'name':self.names[1], 'cname':self.names[2], 'params':params2, 'cells':rle_st}
+		return data
+
+	@staticmethod
+	def arr2rle(A, is_shorten=True):
+		''' http://www.conwaylife.com/w/index.php?title=Run_Length_Encoded
+			http://golly.sourceforge.net/Help/formats.html#rle
+			https://www.rosettacode.org/wiki/Run-length_encoding#Python
+			A=[0 0 1] <-> V=[0 0 255] <-> code=[. . yO] <-> rle=[(2 .)(1 yO)] <-> st='2.yO'
+			0=b=.  1=o=A  1-24=A-X  25-48=pA-pX  49-72=qA-qX  241-255=yA-yO '''
+		V = np.rint(A*255).astype(int).tolist()
+		code = [ [' .' if v==0 else ' '+chr(ord('A')+v-1) if v<25 else chr(ord('p')+(v-25)//24) + chr(ord('A')+(v-25)%24) for v in row] for row in V]
+		if is_shorten:
+			rle = [ [(len(list(g)),k.strip()) for k,g in itertools.groupby(row)] for row in code]
+			for row in rle:
+				if row[-1][1]=='.': row.pop()
+			st = '$'.join(''.join([(str(n) if n>1 else '')+k for n,k in row]) for row in rle) + '!'
+		else:
+			st = '$'.join(''.join(row) for row in code) + '!'
+		# print(sum(sum(r) for r in V))
+		return st
+
+	@staticmethod
+	def rle2arr(st):
+		lines = st.rstrip('!').split('$')
+		rle = [re.findall('(\d*)([p-y]?[.boA-X])', row) for row in lines]
+		code = [ sum([[k] * (1 if n=='' else int(n)) for n,k in row], []) for row in rle]
+		V = [ [0 if c=='.' else ord(c)-ord('A')+1 if len(c)==1 else (ord(c[0])-ord('p'))*24+(ord(c[1])-ord('A')+25) for c in row ] for row in code]
+		maxlen = len(max(V, key=len))
+		A = np.array([row + [0] * (maxlen - len(row)) for row in V])/255
+		# print(sum(sum(r) for r in V))
+		return A
+
+	@staticmethod
+	def fracs2st(B):
+		return ','.join([str(f) for f in B])
+
+	@staticmethod
+	def st2fracs(st):
+		return [Fraction(st) for st in st.split(',')]
+
+	def clear(self):
+		self.cells = np.zeros(self.size)
+
+	def add(self, board2):
+		w = min(board2.size[1], self.size[1])
+		h = min(board2.size[0], self.size[0])
+		i = self.mid[1] - int(w / 2)
+		j = self.mid[0] - int(h / 2)
+		self.cells[j:j+h, i:i+w] = board2[0:h, 0:w]
+
+	def transform(self, angle, new_R):
+		A = snd.rotate(cells, angle, order=0)
+		A = snd.zoom(A, new_R / self.params['R'], order=0)
+		return A
+
+	def crop(self, min=1/255):
+		coords = np.argwhere(self.cells >= min)
+		y0, x0 = coords.min(axis=0)
+		y1, x1 = coords.max(axis=0) + 1
+		self.cells = self.cells[y0:y1, x0:x1]
+
 class Lenia:
 	def __init__(self):
 		self.is_run = True
@@ -96,7 +197,7 @@ class Lenia:
 		elif k in ['shift+v']: self.load_animal_ID(self.animal_ID + 10)
 		elif k in ['ctrl+c', 'shift+ctrl+c']:
 			A = self.crop_cells(self.world, 1/255)
-			rle_st = self.arr2rle(A, 'shift+' not in k)
+			rle_st = Board.arr2rle(A, 'shift+' not in k)
 			data = {'code':self.names[0], 'name':self.names[1], 'cname':self.names[2], 'params':self.params, 'cells':rle_st}
 			data['params']['b'] = ','.join([str(f) for f in self.params['b']])
 			self.clipboard_st = json.dumps(data, separators=(',', ':'))
@@ -150,14 +251,12 @@ class Lenia:
 			if type(self.params['b']) is str:
 				self.params['b'] = [Fraction(st) for st in self.params['b'].split(',')]
 			if type(cells) is str:
-				self.cells = self.rle2arr(cells)
+				self.cells = Board.rle2arr(cells)
 			else:
 				self.cells = cells.copy()
 			self.shift = [0, 0]
 			self.rotate = 0
 			cells = self.cells
-			# if zoom > 1:
-				# self.double_cells(zoom)
 			self.params['R'] *= zoom
 			cells2 = self.transform_cells(self.cells)
 			self.calc_kernel()
@@ -208,34 +307,6 @@ class Lenia:
 		self.video.release()
 		print('> video  saved to "' + self.video_path + '"')
 		self.is_recording = False
-
-	def arr2rle(self, A, is_shorten=True):
-		''' http://www.conwaylife.com/w/index.php?title=Run_Length_Encoded
-			http://golly.sourceforge.net/Help/formats.html#rle
-			https://www.rosettacode.org/wiki/Run-length_encoding#Python
-			A=[0 0 1] <-> V=[0 0 255] <-> code=[. . yO] <-> rle=[(2 .)(1 yO)] <-> st='2.yO'
-			0=b=.  1=o=A  1-24=A-X  25-48=pA-pX  49-72=qA-qX  241-255=yA-yO '''
-		V = np.rint(A*255).astype(int).tolist()
-		code = [ [' .' if v==0 else ' '+chr(ord('A')+v-1) if v<25 else chr(ord('p')+(v-25)//24) + chr(ord('A')+(v-25)%24) for v in row] for row in V]
-		if is_shorten:
-			rle = [ [(len(list(g)),k.strip()) for k,g in itertools.groupby(row)] for row in code]
-			for row in rle:
-				if row[-1][1]=='.': row.pop()
-			st = '$'.join(''.join([(str(n) if n>1 else '')+k for n,k in row]) for row in rle) + '!'
-		else:
-			st = '$'.join(''.join(row) for row in code) + '!'
-		# print(sum(sum(r) for r in V))
-		return st
-
-	def rle2arr(self, st):
-		lines = st.rstrip('!').split('$')
-		rle = [re.findall('(\d*)([p-y]?[.boA-X])', row) for row in lines]
-		code = [ sum([[k] * (1 if n=='' else int(n)) for n,k in row], []) for row in rle]
-		V = [ [0 if c=='.' else ord(c)-ord('A')+1 if len(c)==1 else (ord(c[0])-ord('p'))*24+(ord(c[1])-ord('A')+25) for c in row ] for row in code]
-		maxlen = len(max(V, key=len))
-		A = np.array([row + [0] * (maxlen - len(row)) for row in V])/255
-		# print(sum(sum(r) for r in V))
-		return A
 
 	def create_figure(self):
 		# fig_size = SIZE * 2 + BORDER * 3
@@ -325,8 +396,8 @@ class Lenia:
 		self.field = np.zeros((SIZEY, SIZEX))
 
 	def add_cells(self, cells):
-		w = min(np.shape(cells)[1], SIZEX)
-		h = min(np.shape(cells)[0], SIZEY)
+		w = min(cells.shape[1], SIZEX)
+		h = min(cells.shape[0], SIZEY)
 		i = MIDX - int(w / 2) 
 		j = MIDY - int(h / 2)
 		self.world[j:j+h, i:i+w] = cells[0:h, 0:w]
@@ -338,33 +409,15 @@ class Lenia:
 		self.add_cells(cells2)
 
 	def transform_cells(self, A):
-		A = snd.rotate(A, self.rotate, order=0)
 		A = snd.zoom(A, self.params['R'] / self.params_orig['R'], order=0)
+		A = snd.rotate(A, self.rotate, order=0)
 		return A
-
-	def double_cells(self, n=2):
-		w = np.shape(self.cells)[1] * n
-		h = np.shape(self.cells)[0] * n
-		cells2 = np.zeros((h, w))
-		for i in range(n):
-			for j in range(n):
-				cells2[i:h:n, j:w:n] = self.cells
-		self.cells = cells2
-		self.params['R'] *= n
 
 	def crop_cells(self, A, min=1):
 		coords = np.argwhere(A >= min)
 		y0, x0 = coords.min(axis=0)
 		y1, x1 = coords.max(axis=0) + 1
 		return A[y0:y1, x0:x1]
-
-	def linear_transformation(self, A, T):
-		w, h = A.shape
-		points = np.mgrid[0:h, 0:w].reshape((2, w*h))
-		new_points = np.linalg.inv(T).dot(points).round().astype(int)
-		x, y = new_points.reshape((2, w, h), order='F')
-		indices = x + h*y
-		return np.take(A, indices, mode='wrap')
 
 	def loop(self):
 		self.is_loop = True
