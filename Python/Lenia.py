@@ -110,44 +110,48 @@ class Board:
 		self.cells.fill(0)
 
 	def add(self, part, shift=[0,0]):
+		# assert self.params['R'] == part.params['R']
 		h1, w1 = self.cells.shape
-		h2, w2 = part.shape
-		h, w = min(part.shape, self.cells.shape)
+		h2, w2 = part.cells.shape
+		h, w = min(part.cells.shape, self.cells.shape)
 		i1 = (w1 - w)//2 + shift[1]
 		j1 = (h1 - h)//2 + shift[0]
 		i2 = (w2 - w)//2
 		j2 = (h2 - h)//2
-		# self.cells[j:j+h, i:i+w] = part[0:h, 0:w]
+		# self.cells[j:j+h, i:i+w] = part.cells[0:h, 0:w]
 		for y in range(h):
 			for x in range(w):
-				if part[j2+y, i2+x] > 0:
-					self.cells[(j1+y)%h1, (i1+x)%w1] = part[j2+y, i2+x]
+				if part.cells[j2+y, i2+x] > 0:
+					self.cells[(j1+y)%h1, (i1+x)%w1] = part.cells[j2+y, i2+x]
+		return self
 
-	def transform(self, tx, mode='RZS', is_replace=False, is_world=False):
-		A = self.cells.copy()
-		if 'R' in mode:
-			A = snd.rotate(A, tx['rotate'], reshape=not is_world, order=0, mode='wrap' if is_world else 'constant')
-		if 'Z' in mode:
-			A = snd.zoom(A, tx['R'] / self.params['R'], order=0)
+	def transform(self, tx, mode='RZSF', is_world=False):
+		if 'R' in mode and tx['rotate'] != 0:
+			self.cells = snd.rotate(self.cells, tx['rotate'], reshape=not is_world, order=0, mode='wrap' if is_world else 'constant')
+		if 'Z' in mode and tx['R'] != self.params['R']:
+			# print('* {} / {}'.format(tx['R'], self.params['R']))
+			shape_orig = self.cells.shape
+			self.cells = snd.zoom(self.cells, tx['R'] / self.params['R'], order=0)
 			if is_world:
-				B = Board(self.cells.shape)
-				B.add(A)
-				A = B.cells
-		if 'S' in mode:
-			A = snd.shift(A, tx['shift'], order=0, mode='wrap')
-		if is_replace: self.cells = A
-		return A
+				self.cells = Board(shape_orig).add(self).cells
+			self.params['R'] = tx['R']
+		if 'S' in mode and tx['shift'] != [0, 0]:
+			self.cells = snd.shift(self.cells, tx['shift'], order=0, mode='wrap')
+			# self.cells = np.roll(self.cells, tx['shift'], (0, 1))
+		if 'F' in mode and tx['flip'] != -1:
+			self.cells = np.flip(self.cells, tx['flip'])
+		return self
 
 	def add_transformed(self, part, tx):
-		self.add(part.transform(tx, mode='RZ'), tx['shift'])
+		part = copy.deepcopy(part)
+		self.add(part.transform(tx, mode='RZF'), tx['shift'])
 
-	def crop(self, min=1/255, is_replace=False):
+	def crop(self, min=1/255):
 		coords = np.argwhere(self.cells >= min)
 		y0, x0 = coords.min(axis=0)
 		y1, x1 = coords.max(axis=0) + 1
-		A = self.cells[y0:y1, x0:x1]
-		if is_replace: self.cells = A
-		return A
+		self.cells = self.cells[y0:y1, x0:x1]
+		return self
 
 class Recorder:
 	def __init__(self):
@@ -211,7 +215,11 @@ class Automaton:
 		self.world = world
 		self.potential = np.zeros(world.cells.shape)
 		self.field = np.zeros(world.cells.shape)
+		self.field_old = None
 		self.calc_kernel()
+		self.gen = 0
+		self.time = 0
+		self.is_multistep = False
 
 	def kernel_shell(self, r):
 		k = len(self.world.params['b'])
@@ -223,11 +231,19 @@ class Automaton:
 
 	def calc_once(self):
 		world_FFT = np.fft.fft2(self.world.cells)
-		potential = np.real(np.fft.ifft2(self.kernel_FFT * world_FFT))
-		self.potential = np.roll(potential, (MIDY, MIDX), (0, 1))
+		potential_shifted = np.real(np.fft.ifft2(self.kernel_FFT * world_FFT))
+		self.potential = np.roll(potential_shifted, (MIDY, MIDX), (0, 1))
 		gfunc = Automaton.field_func[self.world.params['gn']]
 		self.field = gfunc(self.potential, self.world.params['m'], self.world.params['s'])
-		self.world.cells = np.clip(self.world.cells + self.field / self.world.params['T'], 0, 1)
+		dt = 1 / self.world.params['T']
+		if self.is_multistep and self.field_old is not None:
+			self.world.cells = np.clip(self.world.cells + 1/2 * dt * (3 * self.field - self.field_old), 0, 1)
+		else:
+			self.world.cells = np.clip(self.world.cells + dt * self.field, 0, 1)
+		if self.is_multistep:
+			self.field_old = self.field.copy()
+		self.gen += 1
+		self.time += dt
 
 	def calc_kernel(self):
 		I, J = np.meshgrid(np.arange(SIZEX), np.arange(SIZEY))
@@ -241,6 +257,11 @@ class Automaton:
 		self.kernel_FFT = np.fft.fft2(kernel_norm)
 		self.kernel_updated = False
 
+	def reset(self):
+		self.gen = 0
+		self.time = 0
+		self.field_old = None
+
 class Lenia:
 	def __init__(self):
 		self.is_run = True
@@ -248,6 +269,7 @@ class Lenia:
 		self.fore = None
 		self.back = None
 		self.is_composit = False
+		self.is_auto_center = False
 		self.show_what = 0
 		self.zoom = DEF_ZOOM
 		self.colormap = [
@@ -265,7 +287,7 @@ class Lenia:
 		self.recorder = Recorder()
 
 	def clear_transform(self):
-		self.tx = {'shift':[0, 0], 'rotate':0, 'R':self.world.params['R']}
+		self.tx = {'shift':[0, 0], 'rotate':0, 'R':self.world.params['R'], 'flip':-1}
 
 	def key_press(self, event):
 		# Win: shift_l/r(0x1) caps_lock(0x2) control_l/r(0x4) alt_l/r(0x20000) win/app/alt_r/control_r(0x40000)
@@ -280,39 +302,43 @@ class Lenia:
 		shift1 = 1 if 'S+' not in k else -1
 		add10 = 10 if 'S+' not in k else 1
 		add1 = 1 if 'S+' not in k else 10
+		mul1 = 1 if 'S+' not in k else 0
 		mul2 = 2 if 'S+' not in k else 1
 		add2 = 0 if 'S+' not in k else 1
 		if k in ['escape']: self.close()
 		elif k in ['enter', 'return']: self.is_run = not self.is_run
 		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
-		elif k in ['tab']: self.show_what = (self.show_what + shift1) % 4
-		elif k in ['backspace', 'delete']: self.world.clear()
+		elif k in ['tab', 'S+tab']: self.show_what = (self.show_what + shift1) % 4
+		elif k in ['backspace', 'delete']: self.world.clear(); self.automaton.reset()
 		elif k in ['q', 'S+q']: self.world.params['m'] += add10 * 0.001
 		elif k in ['a', 'S+a']: self.world.params['m'] -= add10 * 0.001
 		elif k in ['w', 'S+w']: self.world.params['s'] += add10 * 0.0001
 		elif k in ['s', 'S+s']: self.world.params['s'] -= add10 * 0.0001
 		elif k in ['t', 'S+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // mul2 - add2))
 		elif k in ['g', 'S+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  mul2 + add2))
-		elif k in ['backslash']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
-		# elif k in ['r']: self.zoom = max(1, min(20, self.zoom + 1)); self.load_animal_ID(self.animal_ID)
-		# elif k in ['f']: self.zoom = max(1, min(20, self.zoom - 1)); self.load_animal_ID(self.animal_ID)
-		elif k in ['r', 'S+r']: self.zoom = max(1, min(20, self.zoom *  2)); self.tx['R'] = max(1, min(max(SIZEX,SIZEY), self.tx['R'] *  mul2 + add2)); self.transform_world()
-		elif k in ['f', 'S+f']: self.zoom = max(1, min(20, self.zoom // 2)); self.tx['R'] = max(1, min(max(SIZEX,SIZEY), self.tx['R'] // mul2 - add2)); self.transform_world()
+		elif k in ['C+o']: self.automaton.is_multistep = not self.automaton.is_multistep
+		elif k in ['C+p']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
+		elif k in ['r', 'S+r']: self.set_zoom(+mul1, +add2); self.transform_world()
+		elif k in ['f', 'S+f']: self.set_zoom(-mul1, -add2); self.transform_world()
 		elif k in ['down',  'S+down']:  self.tx['shift'][0] += add10; self.transform_world()
 		elif k in ['up',    'S+up']:    self.tx['shift'][0] -= add10; self.transform_world()
 		elif k in ['right', 'S+right']: self.tx['shift'][1] += add10; self.transform_world()
 		elif k in ['left',  'S+left']:  self.tx['shift'][1] -= add10; self.transform_world()
 		elif k in ['prior', 'S+prior']: self.tx['rotate'] += add10; self.transform_world()
 		elif k in ['next',  'S+next']:  self.tx['rotate'] -= add10; self.transform_world()
+		elif k in ['home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
+		elif k in ['end']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
 		elif k in ['1']: self.load_preset_part(1)
 		elif k in ['2']: self.load_preset_part(2)
 		elif k in ['z', 'S+z']: self.load_animal_ID(self.animal_ID, mode='Composit' if 'S+' in k else 'Replace')
 		elif k in ['x', 'S+x']: self.load_part(self.fore, is_random=True, mode='Composit' if 'S+' in k else 'Add')
 		elif k in ['c', 'S+c']: self.load_animal_ID(self.animal_ID - add1)
 		elif k in ['v', 'S+v']: self.load_animal_ID(self.animal_ID + add1)
+		elif k in ['m']: self.center_world()
+		elif k in ['C+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
 		elif k in ['C+c', 'S+C+c', 'C+s', 'S+C+s']:
 			A = copy.deepcopy(self.world)
-			A.crop(1/255, is_replace=True)
+			A.crop(1/255)
 			data = A.to_data(is_shorten='S+' not in k)
 			if k.endswith('c'):
 				self.clipboard_st = json.dumps(data, separators=(',', ':'))
@@ -334,10 +360,11 @@ class Lenia:
 			self.load_part(Board.from_data(data), zoom=1, mode='Composit' if 'S+' in k else 'Replace')
 		elif k in ['quoteleft']: self.is_composit = False
 		elif k in ['C+r', 'S+C+r']: self.recorder.toggle_recording(is_save_frames='S+' in k)
-		elif k in ['equal', 'plus']: self.colormap_ID = (self.colormap_ID + 1) % len(self.colormap)
-		elif k in ['minus', 'underscore']: self.colormap_ID = (self.colormap_ID - 1) % len(self.colormap)
+		elif k in ['equal']: self.colormap_ID = (self.colormap_ID + 1) % len(self.colormap)
 		elif k.endswith('_l') or k.endswith('_r'): pass
 		else: print(k + '[' + hex(event.state) + ']')
+		self.world.params['m'] = round(self.world.params['m'], 10)
+		self.world.params['s'] = round(self.world.params['s'], 10)
 		self.update_info()
 
 	def clear_screen(self):
@@ -385,6 +412,7 @@ class Lenia:
 				self.world.params['R'] *= zoom
 				self.automaton.calc_kernel()
 				self.world.clear()
+				self.automaton.reset()
 			self.clear_transform()
 			if is_random:
 				self.tx['rotate'] = np.random.random() * 360
@@ -392,12 +420,21 @@ class Lenia:
 				h, w = min(part.cells.shape, self.world.cells.shape)
 				self.tx['shift'][1] = np.random.randint(w1 + w) - w1//2
 				self.tx['shift'][0] = np.random.randint(h1 + h) - h1//2
+				self.tx['flip'] = np.random.randint(3) - 1
 			self.world.add_transformed(part, self.tx)
+
+	def set_zoom(self, zoom_add, R_add):
+		if zoom_add != 0:
+			zoom_old = self.zoom
+			self.zoom = max(1, self.zoom + zoom_add)
+			self.tx['R'] = self.tx['R'] // zoom_old * self.zoom
+		self.tx['R'] += R_add
 
 	def transform_world(self):
 		if self.is_composit:
 			self.world.cells = self.back.cells.copy()
-			self.world.transform(self.tx, mode='Z', is_replace=True, is_world=True)
+			self.world.params = self.back.params.copy()
+			self.world.transform(self.tx, mode='Z', is_world=True)
 			self.world.add_transformed(self.fore, self.tx)
 		else:
 			if not self.is_run:
@@ -405,9 +442,17 @@ class Lenia:
 					self.back = copy.deepcopy(self.world)
 				else:
 					self.world.cells = self.back.cells.copy()
-			self.world.transform(self.tx, is_replace=True, is_world=True)
+					self.world.params = self.back.params.copy()
+			self.world.transform(self.tx, is_world=True)
 		self.world.params['R'] = self.tx['R']
 		self.automaton.calc_kernel()
+
+	def center_world(self):
+		if np.sum(self.world.cells) < EPSILON:
+			return
+		cy, cx = snd.center_of_mass(self.world.cells)
+		tx = {'shift':[MIDY - cy, MIDX - cx]}
+		self.world.transform(tx, mode='S', is_world=True)
 
 	def create_window(self):
 		self.win = tk.Tk()
@@ -476,6 +521,8 @@ class Lenia:
 		while self.is_loop:
 			if self.is_run or self.is_once:
 				self.automaton.calc_once()
+				if self.is_auto_center:
+					self.center_world()
 				if not self.is_composit:
 					self.back = None
 					self.clear_transform()
