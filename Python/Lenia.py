@@ -14,7 +14,7 @@ try:
 except ImportError:
 	import Tkinter as tk
 
-SIZEX, SIZEY = 1 << 8, 1 << 8
+SIZEX, SIZEY = 1 << 9, 1 << 8
 # SIZEX, SIZEY = 1920, 1080  # 1080p HD
 # SIZEX, SIZEY = 1280, 720  # 720p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
@@ -291,49 +291,49 @@ class Lenia:
 
 	def key_press(self, event):
 		# Win: shift_l/r(0x1) caps_lock(0x2) control_l/r(0x4) alt_l/r(0x20000) win/app/alt_r/control_r(0x40000)
-		# Mac: shift_l(0x1) caps_lock(0x2) control_l(0x4) command_l(0x8)
+		# Mac: shift_l(0x1) caps_lock(0x2) control_l(0x4) meta_l(0x8,command) alt_l(0x10) super_l(0x40,fn)
 		k = event.keysym.lower()
 		s = event.state
 		# print(k + '[' + hex(event.state) + ']'); return
 		if s & 0x20000: k = 'A+' + k  # Win: Alt
-		#if s & 0x8: k = 'C+' + k  # Mac: Command
+		#if s & 0x8: k = 'C+' + k  # Mac: Meta/Command
 		if s & 0x4: k = 'C+' + k  # Win/Mac: Control
 		if s & 0x1: k = 'S+' + k
-		shift1 = 1 if 'S+' not in k else -1
-		add10 = 10 if 'S+' not in k else 1
-		add1 = 1 if 'S+' not in k else 10
-		mul1 = 1 if 'S+' not in k else 0
-		mul2 = 2 if 'S+' not in k else 1
-		add2 = 0 if 'S+' not in k else 1
+		inc_or_dec = 1 if 'S+' not in k else -1
+		inc_10_or_1 = 10 if 'S+' not in k else 1
+		inc_1_or_10 = 1 if 'S+' not in k else 10
+		inc_mul_or_not = 1 if 'S+' not in k else 0
+		double_or_not = 2 if 'S+' not in k else 1
+		inc_or_not = 0 if 'S+' not in k else 1
 		if k in ['escape']: self.close()
 		elif k in ['enter', 'return']: self.is_run = not self.is_run
 		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
-		elif k in ['tab', 'S+tab']: self.show_what = (self.show_what + shift1) % 4
+		elif k in ['tab', 'S+tab']: self.show_what = (self.show_what + inc_or_dec) % 4
 		elif k in ['backspace', 'delete']: self.world.clear(); self.automaton.reset()
-		elif k in ['q', 'S+q']: self.world.params['m'] += add10 * 0.001
-		elif k in ['a', 'S+a']: self.world.params['m'] -= add10 * 0.001
-		elif k in ['w', 'S+w']: self.world.params['s'] += add10 * 0.0001
-		elif k in ['s', 'S+s']: self.world.params['s'] -= add10 * 0.0001
-		elif k in ['t', 'S+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // mul2 - add2))
-		elif k in ['g', 'S+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  mul2 + add2))
+		elif k in ['q', 'S+q']: self.world.params['m'] += inc_10_or_1 * 0.001
+		elif k in ['a', 'S+a']: self.world.params['m'] -= inc_10_or_1 * 0.001
+		elif k in ['w', 'S+w']: self.world.params['s'] += inc_10_or_1 * 0.0001
+		elif k in ['s', 'S+s']: self.world.params['s'] -= inc_10_or_1 * 0.0001
+		elif k in ['t', 'S+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // double_or_not - inc_or_not))
+		elif k in ['g', 'S+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  double_or_not + inc_or_not))
 		elif k in ['C+o']: self.automaton.is_multistep = not self.automaton.is_multistep
 		elif k in ['C+p']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
-		elif k in ['r', 'S+r']: self.set_zoom(+mul1, +add2); self.transform_world()
-		elif k in ['f', 'S+f']: self.set_zoom(-mul1, -add2); self.transform_world()
-		elif k in ['down',  'S+down']:  self.tx['shift'][0] += add10; self.transform_world()
-		elif k in ['up',    'S+up']:    self.tx['shift'][0] -= add10; self.transform_world()
-		elif k in ['right', 'S+right']: self.tx['shift'][1] += add10; self.transform_world()
-		elif k in ['left',  'S+left']:  self.tx['shift'][1] -= add10; self.transform_world()
-		elif k in ['prior', 'S+prior']: self.tx['rotate'] += add10; self.transform_world()
-		elif k in ['next',  'S+next']:  self.tx['rotate'] -= add10; self.transform_world()
+		elif k in ['r', 'S+r']: self.set_zoom(+inc_mul_or_not, +inc_or_not); self.transform_world()
+		elif k in ['f', 'S+f']: self.set_zoom(-inc_mul_or_not, -inc_or_not); self.transform_world()
+		elif k in ['down',  'S+down']:  self.tx['shift'][0] += inc_10_or_1; self.transform_world()
+		elif k in ['up',    'S+up']:    self.tx['shift'][0] -= inc_10_or_1; self.transform_world()
+		elif k in ['right', 'S+right']: self.tx['shift'][1] += inc_10_or_1; self.transform_world()
+		elif k in ['left',  'S+left']:  self.tx['shift'][1] -= inc_10_or_1; self.transform_world()
+		elif k in ['prior', 'S+prior']: self.tx['rotate'] += inc_10_or_1; self.transform_world()
+		elif k in ['next',  'S+next']:  self.tx['rotate'] -= inc_10_or_1; self.transform_world()
 		elif k in ['home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
 		elif k in ['end']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
 		elif k in ['1']: self.load_preset_part(1)
 		elif k in ['2']: self.load_preset_part(2)
 		elif k in ['z', 'S+z']: self.load_animal_ID(self.animal_ID, mode='Composit' if 'S+' in k else 'Replace')
 		elif k in ['x', 'S+x']: self.load_part(self.fore, is_random=True, mode='Composit' if 'S+' in k else 'Add')
-		elif k in ['c', 'S+c']: self.load_animal_ID(self.animal_ID - add1)
-		elif k in ['v', 'S+v']: self.load_animal_ID(self.animal_ID + add1)
+		elif k in ['c', 'S+c']: self.load_animal_ID(self.animal_ID - inc_1_or_10 * 2)
+		elif k in ['v', 'S+v']: self.load_animal_ID(self.animal_ID + inc_1_or_10 * 2)
 		elif k in ['m']: self.center_world()
 		elif k in ['C+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
 		elif k in ['C+c', 'S+C+c', 'C+s', 'S+C+s']:
