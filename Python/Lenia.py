@@ -14,12 +14,13 @@ try:
 except ImportError:
 	import Tkinter as tk
 
-SIZEX, SIZEY = 1 << 9, 1 << 8
+SIZEX, SIZEY = 1 << 8, 1 << 8
 # SIZEX, SIZEY = 1920, 1080  # 1080p HD
 # SIZEX, SIZEY = 1280, 720  # 720p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
 DEF_ZOOM = 4
 EPSILON = 1e-10
+ROUND = 10
 
 RECORD_ROOT = 'record'
 FRAME_EXT = '.png'
@@ -29,7 +30,7 @@ VIDEO_CODEC = 'mp4v'  # .avi *'DIVX' / .mp4 *'mp4v' *'avc1'
 class Board:
 	def __init__(self, size=[0,0]):
 		self.names = ['', '', '']
-		self.params = {'R':11, 'T':10, 'b':[1], 'm':0.15, 's':0.015, 'kn':0, 'gn':0}
+		self.params = {'R':10, 'T':10, 'b':[1], 'm':0.1, 's':0.01, 'kn':1, 'gn':1}
 		self.cells = np.zeros(size)
 
 	@classmethod
@@ -56,16 +57,16 @@ class Board:
 	def to_data(self, is_shorten=True):
 		rle_st = Board.arr2rle(self.cells, is_shorten)
 		params2 = self.params.copy()
-		params2['b'] = Board.fracs2st(self.params['b'])
+		params2['b'] = Board.fracs2st(params2['b'])
 		data = {'code':self.names[0], 'name':self.names[1], 'cname':self.names[2], 'params':params2, 'cells':rle_st}
 		return data
 
 	def params2st(self):
 		params2 = self.params.copy()
-		params2['b'] = '[' + Board.fracs2st(self.params['b']) + ']'
-		return ','.join(['{}={}'.format(k,str(v)) for k,v in params.items()])
+		params2['b'] = '[' + Board.fracs2st(params2['b']) + ']'
+		return ','.join(['{}={}'.format(k,str(v)) for (k,v) in params2.items()])
 
-	def longname(self):
+	def long_name(self):
 		return ' | '.join(filter(None, self.names))
 	
 	@staticmethod
@@ -145,6 +146,7 @@ class Board:
 	def add_transformed(self, part, tx):
 		part = copy.deepcopy(part)
 		self.add(part.transform(tx, mode='RZF'), tx['shift'])
+		return self
 
 	def crop(self, min=1/255):
 		coords = np.argwhere(self.cells >= min)
@@ -170,7 +172,7 @@ class Recorder:
 	def start_record(self):
 		''' https://github.com/cisco/openh264/ '''
 		self.is_recording = True
-		print('> start ' + ('saving frames and ' if self.is_save_frames else '') + 'recording video...')
+		self.status = "> start " + ("saving frames and " if self.is_save_frames else "") + "recording video..."
 		self.record_ID = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 		self.record_seq = 1
 		if self.is_save_frames:
@@ -192,23 +194,25 @@ class Recorder:
 		self.record_seq += 1
 
 	def finish_record(self):
+		status = []
 		if self.is_save_frames:
 			for img_name in sorted(os.listdir(self.img_dir)):
 				if img_name.endswith(FRAME_EXT):
 					self.video.write(cv2.imread(os.path.join(self.img_dir, img_name)))
-			print('> frames saved to "' + self.img_dir + '/*' + FRAME_EXT + '"')
+			status.append("> frames saved to '" + self.img_dir + "/*" + FRAME_EXT + "'")
 		self.video.release()
-		print('> video  saved to "' + self.video_path + '"')
+		status.append("> video  saved to '" + self.video_path + "'")
+		self.status = "\n".join(status)
 		self.is_recording = False
 
 class Automaton:
 	kernel_core = {
-		0: lambda r: (4 * r * (1-r))**4,
-		1: lambda r: np.exp( 4 - 1 / (r * (1-r)) )
+		0: lambda r: (4 * r * (1-r))**4,  # quad4
+		1: lambda r: np.exp( 4 - 1 / (r * (1-r)) )  # bump4
 	}
 	field_func = {
-		0: lambda n, m, s: np.maximum(0, 1 - (n-m)**2 / (9 * s**2) )**4 * 2 - 1,
-		1: lambda n, m, s: np.exp( - (n-m)**2 / (2 * s**2) ) * 2 - 1
+		0: lambda n, m, s: np.maximum(0, 1 - (n-m)**2 / (9 * s**2) )**4 * 2 - 1,  # quad4
+		1: lambda n, m, s: np.exp( - (n-m)**2 / (2 * s**2) ) * 2 - 1  # gaus
 	}
 
 	def __init__(self, world):
@@ -220,28 +224,35 @@ class Automaton:
 		self.gen = 0
 		self.time = 0
 		self.is_multistep = False
+		self.is_clip = True
+		self.kn = 1
+		self.gn = 1
 
 	def kernel_shell(self, r):
 		k = len(self.world.params['b'])
 		kr = k * r
 		bs = np.array([float(f) for f in self.world.params['b']])
 		b = bs[np.minimum(np.floor(kr).astype(int), k-1)]
-		kfunc = Automaton.kernel_core[self.world.params['kn']]
+		kfunc = Automaton.kernel_core[(self.world.params.get('kn') or self.kn) - 1]
 		return (r<1) * kfunc(np.minimum(kr % 1, 1)) * b
 
-	def calc_once(self):
+	def calc_once(self, is_update=True):
 		world_FFT = np.fft.fft2(self.world.cells)
 		potential_shifted = np.real(np.fft.ifft2(self.kernel_FFT * world_FFT))
 		self.potential = np.roll(potential_shifted, (MIDY, MIDX), (0, 1))
-		gfunc = Automaton.field_func[self.world.params['gn']]
+		gfunc = Automaton.field_func[(self.world.params.get('gn') or self.gn) - 1]
 		self.field = gfunc(self.potential, self.world.params['m'], self.world.params['s'])
 		dt = 1 / self.world.params['T']
 		if self.is_multistep and self.field_old is not None:
-			self.world.cells = np.clip(self.world.cells + 1/2 * dt * (3 * self.field - self.field_old), 0, 1)
-		else:
-			self.world.cells = np.clip(self.world.cells + dt * self.field, 0, 1)
-		if self.is_multistep:
+			cells_new = self.world.cells + 1/2 * dt * (3 * self.field - self.field_old)
 			self.field_old = self.field.copy()
+		else:
+			cells_new = self.world.cells + dt * self.field
+		if self.is_clip:
+			cells_new = np.clip(cells_new, 0, 1)
+		self.change = (cells_new - self.world.cells) / dt
+		if is_update:
+			self.world.cells = cells_new
 		self.gen += 1
 		self.time += dt
 
@@ -268,8 +279,9 @@ class Lenia:
 		self.is_once = False
 		self.fore = None
 		self.back = None
-		self.is_composit = False
+		self.is_composite = False
 		self.is_auto_center = False
+		self.is_auto_load = False
 		self.show_what = 0
 		self.zoom = DEF_ZOOM
 		self.colormap = [
@@ -278,6 +290,7 @@ class Lenia:
 			self.create_colormap(256, np.array([[4,8,8,8,4,0,0,0,0],[0,0,4,8,8,8,6,4,2],[0,0,0,0,0,0,0,0,0]])), #RYGG
 			self.create_colormap(256, np.array([[0,3,4,5,8],[0,3,4,5,8],[0,3,4,5,8]]))] #B/W
 		self.colormap_ID = 0
+		self.status = ""
 
 		self.read_animals()
 		self.world = Board((SIZEY, SIZEX))
@@ -285,115 +298,24 @@ class Lenia:
 		self.clear_transform()
 		self.create_window()
 		self.recorder = Recorder()
+		self.excess_key = None
 
 	def clear_transform(self):
 		self.tx = {'shift':[0, 0], 'rotate':0, 'R':self.world.params['R'], 'flip':-1}
 
-	def key_press(self, event):
-		# Win: shift_l/r(0x1) caps_lock(0x2) control_l/r(0x4) alt_l/r(0x20000) win/app/alt_r/control_r(0x40000)
-		# Mac: shift_l(0x1) caps_lock(0x2) control_l(0x4) meta_l(0x8,command) alt_l(0x10) super_l(0x40,fn)
-		k = event.keysym.lower()
-		s = event.state
-		# print(k + '[' + hex(event.state) + ']'); return
-		if s & 0x20000: k = 'A+' + k  # Win: Alt
-		#if s & 0x8: k = 'C+' + k  # Mac: Meta/Command
-		if s & 0x4: k = 'C+' + k  # Win/Mac: Control
-		if s & 0x1: k = 'S+' + k
-		inc_or_dec = 1 if 'S+' not in k else -1
-		inc_10_or_1 = 10 if 'S+' not in k else 1
-		inc_1_or_10 = 1 if 'S+' not in k else 10
-		inc_mul_or_not = 1 if 'S+' not in k else 0
-		double_or_not = 2 if 'S+' not in k else 1
-		inc_or_not = 0 if 'S+' not in k else 1
-		if k in ['escape']: self.close()
-		elif k in ['enter', 'return']: self.is_run = not self.is_run
-		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
-		elif k in ['tab', 'S+tab']: self.show_what = (self.show_what + inc_or_dec) % 4
-		elif k in ['backspace', 'delete']: self.world.clear(); self.automaton.reset()
-		elif k in ['q', 'S+q']: self.world.params['m'] += inc_10_or_1 * 0.001
-		elif k in ['a', 'S+a']: self.world.params['m'] -= inc_10_or_1 * 0.001
-		elif k in ['w', 'S+w']: self.world.params['s'] += inc_10_or_1 * 0.0001
-		elif k in ['s', 'S+s']: self.world.params['s'] -= inc_10_or_1 * 0.0001
-		elif k in ['t', 'S+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // double_or_not - inc_or_not))
-		elif k in ['g', 'S+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  double_or_not + inc_or_not))
-		elif k in ['C+o']: self.automaton.is_multistep = not self.automaton.is_multistep
-		elif k in ['C+p']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
-		elif k in ['r', 'S+r']: self.set_zoom(+inc_mul_or_not, +inc_or_not); self.transform_world()
-		elif k in ['f', 'S+f']: self.set_zoom(-inc_mul_or_not, -inc_or_not); self.transform_world()
-		elif k in ['down',  'S+down']:  self.tx['shift'][0] += inc_10_or_1; self.transform_world()
-		elif k in ['up',    'S+up']:    self.tx['shift'][0] -= inc_10_or_1; self.transform_world()
-		elif k in ['right', 'S+right']: self.tx['shift'][1] += inc_10_or_1; self.transform_world()
-		elif k in ['left',  'S+left']:  self.tx['shift'][1] -= inc_10_or_1; self.transform_world()
-		elif k in ['prior', 'S+prior']: self.tx['rotate'] += inc_10_or_1; self.transform_world()
-		elif k in ['next',  'S+next']:  self.tx['rotate'] -= inc_10_or_1; self.transform_world()
-		elif k in ['home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
-		elif k in ['end']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
-		elif k in ['1']: self.load_preset_part(1)
-		elif k in ['2']: self.load_preset_part(2)
-		elif k in ['z', 'S+z']: self.load_animal_ID(self.animal_ID, mode='Composit' if 'S+' in k else 'Replace')
-		elif k in ['x', 'S+x']: self.load_part(self.fore, is_random=True, mode='Composit' if 'S+' in k else 'Add')
-		elif k in ['c', 'S+c']: self.load_animal_ID(self.animal_ID - inc_1_or_10 * 2)
-		elif k in ['v', 'S+v']: self.load_animal_ID(self.animal_ID + inc_1_or_10 * 2)
-		elif k in ['m']: self.center_world()
-		elif k in ['C+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
-		elif k in ['C+c', 'S+C+c', 'C+s', 'S+C+s']:
-			A = copy.deepcopy(self.world)
-			A.crop(1/255)
-			data = A.to_data(is_shorten='S+' not in k)
-			if k.endswith('c'):
-				self.clipboard_st = json.dumps(data, separators=(',', ':'))
-				self.win.clipboard_clear()
-				self.win.clipboard_append(self.clipboard_st)
-				# print(self.clipboard_st)
-				print('> board saved to clipboard')
-			elif k.endswith('s'):
-				with open('last_animal.json', 'w') as file:
-					json.dump(data, file, separators=(',', ':'))
-				with open('last_animal.rle', 'w') as file:
-					file.write('#N '+A.longname()+'\n')
-					file.write('x = '+str(A.cells.shape[1])+', y = '+str(A.cells.shape[0])+', rule = Lenia('+A.params2st()+')\n')
-					file.write(data['cells'].replace('$','$\n')+'\n')
-				print('> board saved to files "{}" & "{}"'.format('last_animal.json', 'last_animal.rle'))
-		elif k in ['C+v', 'S+C+v']:
-			self.clipboard_st = self.win.clipboard_get()
-			data = json.loads(self.clipboard_st)
-			self.load_part(Board.from_data(data), zoom=1, mode='Composit' if 'S+' in k else 'Replace')
-		elif k in ['quoteleft']: self.is_composit = False
-		elif k in ['C+r', 'S+C+r']: self.recorder.toggle_recording(is_save_frames='S+' in k)
-		elif k in ['equal']: self.colormap_ID = (self.colormap_ID + 1) % len(self.colormap)
-		elif k.endswith('_l') or k.endswith('_r'): pass
-		else: print(k + '[' + hex(event.state) + ']')
-		self.world.params['m'] = round(self.world.params['m'], 10)
-		self.world.params['s'] = round(self.world.params['s'], 10)
-		self.update_info()
-
-	def clear_screen(self):
-		_ = os.system('cls' if os.name == 'nt' else 'clear')
-
-	def update_info(self):
-		# self.clear_screen()
-		# st = "Lenia  animal[{name}]({w}{times}{h})".format(name=self.world.longname(), h=self.fore.cells.shape[0], w=self.fore.cells.shape[1], times=chr(0xD7))
-		st = "Lenia  [{name}] {times}{zoom}".format(name=self.world.longname(), zoom=self.zoom, times=chr(0xD7))
-		if self.recorder.is_recording:
-			st += "  "+chr(0x2B24)+"REC"
-		# print(st)
-		self.win.title(st)
+	def check_auto_load(self):
+		if self.is_auto_load:
+			self.load_part(self.fore, is_set_params=False)
 
 	def read_animals(self):
 		with open('animals.json', encoding='utf-8') as file:
 			self.animal_data = json.load(file)
-		self.animal_ID = 4
 
 	def load_animal_ID(self, ID, **kwargs):
 		self.animal_ID = max(0, min(len(self.animal_data)-1, ID))
 		self.load_part(Board.from_data(self.animal_data[self.animal_ID]), **kwargs)
 
-	def load_preset_part(self, id, **kwargs):
-		if id==1: names = ['', 'Orbium bicaudatus', '']; params = {'R':13,'T':10,'b':[Fraction(1)],'m':0.15,'s':0.014,'kn':0,'gn':0}; cells = np.array([[0,0,0,0,0,0,0.1,0.14,0.1,0,0,0.03,0.03,0,0,0.3,0,0,0,0],[0,0,0,0,0,0.08,0.24,0.3,0.3,0.18,0.14,0.15,0.16,0.15,0.09,0.2,0,0,0,0],[0,0,0,0,0,0.15,0.34,0.44,0.46,0.38,0.18,0.14,0.11,0.13,0.19,0.18,0.45,0,0,0],[0,0,0,0,0.06,0.13,0.39,0.5,0.5,0.37,0.06,0,0,0,0.02,0.16,0.68,0,0,0],[0,0,0,0.11,0.17,0.17,0.33,0.4,0.38,0.28,0.14,0,0,0,0,0,0.18,0.42,0,0],[0,0,0.09,0.18,0.13,0.06,0.08,0.26,0.32,0.32,0.27,0,0,0,0,0,0,0.82,0,0],[0.27,0,0.16,0.12,0,0,0,0.25,0.38,0.44,0.45,0.34,0,0,0,0,0,0.22,0.17,0],[0,0.07,0.2,0.02,0,0,0,0.31,0.48,0.57,0.6,0.57,0,0,0,0,0,0,0.49,0],[0,0.59,0.19,0,0,0,0,0.2,0.57,0.69,0.76,0.76,0.49,0,0,0,0,0,0.36,0],[0,0.58,0.19,0,0,0,0,0,0.67,0.83,0.9,0.92,0.87,0.12,0,0,0,0,0.22,0.07],[0,0,0.46,0,0,0,0,0,0.7,0.93,1,1,1,0.61,0,0,0,0,0.18,0.11],[0,0,0.82,0,0,0,0,0,0.47,1,1,0.98,1,0.96,0.27,0,0,0,0.19,0.1],[0,0,0.46,0,0,0,0,0,0.25,1,1,0.84,0.92,0.97,0.54,0.14,0.04,0.1,0.21,0.05],[0,0,0,0.4,0,0,0,0,0.09,0.8,1,0.82,0.8,0.85,0.63,0.31,0.18,0.19,0.2,0.01],[0,0,0,0.36,0.1,0,0,0,0.05,0.54,0.86,0.79,0.74,0.72,0.6,0.39,0.28,0.24,0.13,0],[0,0,0,0.01,0.3,0.07,0,0,0.08,0.36,0.64,0.7,0.64,0.6,0.51,0.39,0.29,0.19,0.04,0],[0,0,0,0,0.1,0.24,0.14,0.1,0.15,0.29,0.45,0.53,0.52,0.46,0.4,0.31,0.21,0.08,0,0],[0,0,0,0,0,0.08,0.21,0.21,0.22,0.29,0.36,0.39,0.37,0.33,0.26,0.18,0.09,0,0,0],[0,0,0,0,0,0,0.03,0.13,0.19,0.22,0.24,0.24,0.23,0.18,0.13,0.05,0,0,0,0],[0,0,0,0,0,0,0,0,0.02,0.06,0.08,0.09,0.07,0.05,0.01,0,0,0,0,0]])
-		elif id==2: names = ['', 'Rotorbium', '']; params = {'R':13,'T':10,'b':[Fraction(1)],'m':0.156,'s':0.0224,'kn':0,'gn':0}; cells = np.array([[0,0,0,0,0,0,0,0,0.003978,0.016492,0.004714,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0.045386,0.351517,0.417829,0.367137,0.37766,0.426948,0.431058,0.282864,0.081247,0,0,0,0,0,0],[0,0,0,0,0.325473,0.450995,0.121737,0,0,0,0.003113,0.224278,0.47101,0.456459,0.247231,0.071609,0.013126,0,0,0],[0,0,0,0.386337,0.454077,0,0,0,0,0,0,0,0.27848,0.524466,0.464281,0.242651,0.096721,0.038476,0,0],[0,0,0.258817,0.583802,0.150994,0,0,0,0,0,0,0,0.226639,0.548329,0.550422,0.334764,0.153108,0.087049,0.042872,0],[0,0.008021,0.502406,0.524042,0.059531,0,0,0,0,0,0,0.033946,0.378866,0.615467,0.577527,0.357306,0.152872,0.090425,0.058275,0.023345],[0,0.179756,0.596317,0.533619,0.162612,0,0,0,0,0.015021,0.107673,0.325125,0.594765,0.682434,0.594688,0.381172,0.152078,0.073544,0.054424,0.030592],[0,0.266078,0.614339,0.605474,0.379255,0.195176,0.16516,0.179148,0.204498,0.299535,0.760743,1,1,1,1,0.490799,0.237826,0.069989,0.043549,0.022165],[0,0.333031,0.64057,0.686886,0.60698,0.509866,0.450525,0.389552,0.434978,0.859115,0.94097,1,1,1,1,1,0.747866,0.118317,0.037712,0.006271],[0,0.417887,0.6856,0.805342,0.824229,0.771553,0.69251,0.614328,0.651704,0.843665,0.910114,1,1,0.81765,0.703404,0.858469,1,0.613961,0.035691,0],[0.04674,0.526827,0.787644,0.895984,0.734214,0.661746,0.670024,0.646184,0.69904,0.723163,0.682438,0.618645,0.589858,0.374017,0.30658,0.404027,0.746403,0.852551,0.031459,0],[0.130727,0.658494,0.899652,0.508352,0.065875,0.009245,0.232702,0.419661,0.461988,0.470213,0.390198,0.007773,0,0.010182,0.080666,0.17231,0.44588,0.819878,0.034815,0],[0.198532,0.810417,0.63725,0.031385,0,0,0,0,0.315842,0.319248,0.321024,0,0,0,0,0.021482,0.27315,0.747039,0,0],[0.217619,0.968727,0.104843,0,0,0,0,0,0.152033,0.158413,0.114036,0,0,0,0,0,0.224751,0.647423,0,0],[0.138866,1,0.093672,0,0,0,0,0,0.000052,0.015966,0,0,0,0,0,0,0.281471,0.455713,0,0],[0,1,0.145606,0.005319,0,0,0,0,0,0,0,0,0,0,0,0.016878,0.381439,0.173336,0,0],[0,0.97421,0.262735,0.096478,0,0,0,0,0,0,0,0,0,0,0.013827,0.217967,0.287352,0,0,0],[0,0.593133,0.2981,0.251901,0.167326,0.088798,0.041468,0.013086,0.002207,0.009404,0.032743,0.061718,0.102995,0.1595,0.24721,0.233961,0.002389,0,0,0],[0,0,0.610166,0.15545,0.200204,0.228209,0.241863,0.243451,0.270572,0.446258,0.376504,0.174319,0.154149,0.12061,0.074709,0,0,0,0,0],[0,0,0.354313,0.32245,0,0,0,0.151173,0.479517,0.650744,0.392183,0,0,0,0,0,0,0,0,0],[0,0,0,0.329339,0.328926,0.176186,0.198788,0.335721,0.534118,0.549606,0.361315,0,0,0,0,0,0,0,0,0],[0,0,0,0,0.090407,0.217992,0.190592,0.174636,0.222482,0.375871,0.265924,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0.050256,0.235176,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0.180145,0.132616,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0.092581,0.188519,0.118256,0,0,0,0]]) 
-		self.load_part(Board.from_values(names, params, cells), **kwargs)
-
-	def load_part(self, part, mode='Replace', is_random=False, zoom=None):
+	def load_part(self, part, mode='Replace', is_random=False, zoom=None, is_set_params=True):
 		self.fore = part
 		if zoom == None:
 			zoom = self.zoom
@@ -403,14 +325,15 @@ class Lenia:
 		if mode=='Replace':
 			self.world.names = part.names.copy()
 		if part.params is not None and part.cells is not None:
-			self.is_composit = False
-			if mode=='Composit':
+			self.is_composite = False
+			if mode=='composite':
 				self.back = copy.deepcopy(self.world)
-				self.is_composit = True
+				self.is_composite = True
 			elif mode=='Replace':
-				self.world.params = part.params.copy()
-				self.world.params['R'] *= zoom
-				self.automaton.calc_kernel()
+				if is_set_params:
+					self.world.params = part.params.copy()
+					self.world.params['R'] *= zoom
+					self.automaton.calc_kernel()
 				self.world.clear()
 				self.automaton.reset()
 			self.clear_transform()
@@ -431,7 +354,7 @@ class Lenia:
 		self.tx['R'] += R_add
 
 	def transform_world(self):
-		if self.is_composit:
+		if self.is_composite:
 			self.world.cells = self.back.cells.copy()
 			self.world.params = self.back.params.copy()
 			self.world.transform(self.tx, mode='Z', is_world=True)
@@ -488,7 +411,8 @@ class Lenia:
 		if self.show_what == 0: self.show_panel(self.panel1, self.world.cells, 0, 1)
 		elif self.show_what == 1: self.show_panel(self.panel1, self.automaton.potential, 0, 0.3)
 		elif self.show_what == 2: self.show_panel(self.panel1, self.automaton.field, -1, 1)
-		elif self.show_what == 3: self.show_panel(self.panel1, self.automaton.kernel, 0, 1)
+		elif self.show_what == 3: self.show_panel(self.panel1, self.automaton.change, -1, 1)
+		elif self.show_what == 4: self.show_panel(self.panel1, self.automaton.kernel, 0, 1)
 		# if not self.kernel_updated:
 			# self.show_panel(self.panel4, self.kernel, 0, 1)
 			# self.kernel_updated = True
@@ -523,15 +447,147 @@ class Lenia:
 				self.automaton.calc_once()
 				if self.is_auto_center:
 					self.center_world()
-				if not self.is_composit:
+				if not self.is_composite:
 					self.back = None
 					self.clear_transform()
 				self.is_once = False
 			self.show_world()
 
+	def key_press(self, event):
+		# Win: shift_l/r(0x1) caps_lock(0x2) control_l/r(0x4) alt_l/r(0x20000) win/app/alt_r/control_r(0x40000)
+		# Mac: shift_l(0x1) caps_lock(0x2) control_l(0x4) meta_l(0x8,command) alt_l(0x10) super_l(0x40,fn)
+		k = event.keysym.lower()
+		s = event.state
+		# print(k + '[' + hex(event.state) + ']'); return
+		if s & 0x20000: k = 'A+' + k  # Win: Alt
+		#if s & 0x8: k = 'C+' + k  # Mac: Meta/Command
+		if s & 0x4: k = 'C+' + k  # Win/Mac: Control
+		if s & 0x1: k = 'S+' + k
+		inc_or_dec = 1 if 'S+' not in k else -1
+		inc_10_or_1 = 10 if 'S+' not in k else 1
+		inc_1_or_10 = 1 if 'S+' not in k else 10
+		inc_mul_or_not = 1 if 'S+' not in k else 0
+		double_or_not = 2 if 'S+' not in k else 1
+		inc_or_not = 0 if 'S+' not in k else 1
+
+		is_ignore = False
+		self.excess_key = None
+		self.status = ""
+		if k in ['escape']: self.close()
+		elif k in ['enter', 'return']: self.is_run = not self.is_run
+		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
+		elif k in ['q', 'S+q']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load()
+		elif k in ['a', 'S+a']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load()
+		elif k in ['w', 'S+w']: self.world.params['s'] += inc_10_or_1 * 0.0001; self.check_auto_load()
+		elif k in ['s', 'S+s']: self.world.params['s'] -= inc_10_or_1 * 0.0001; self.check_auto_load()
+		elif k in ['t', 'S+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // double_or_not - inc_or_not))
+		elif k in ['g', 'S+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  double_or_not + inc_or_not))
+		elif k in ['C+y']: self.automaton.kn = (self.automaton.kn + inc_or_dec - 1) % len(self.automaton.kernel_core) + 1
+		elif k in ['C+u']: self.automaton.gn = (self.automaton.gn + inc_or_dec - 1) % len(self.automaton.field_func) + 1
+		# elif k in ['C+i']: self.automaton.is_clip = not self.automaton.is_clip
+		elif k in ['C+o']: self.automaton.is_multistep = not self.automaton.is_multistep
+		elif k in ['C+p']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
+		elif k in ['equal', 'S+plus']: self.colormap_ID = (self.colormap_ID + inc_or_dec) % len(self.colormap)
+		elif k in ['tab', 'S+tab']: self.show_what = (self.show_what + inc_or_dec) % 5
+		elif k in ['r', 'S+r']: self.set_zoom(+inc_mul_or_not, +inc_or_not); self.transform_world()
+		elif k in ['f', 'S+f']: self.set_zoom(-inc_mul_or_not, -inc_or_not); self.transform_world()
+		elif k in ['down',  'S+down']:  self.tx['shift'][0] += inc_10_or_1; self.transform_world()
+		elif k in ['up',    'S+up']:    self.tx['shift'][0] -= inc_10_or_1; self.transform_world()
+		elif k in ['right', 'S+right']: self.tx['shift'][1] += inc_10_or_1; self.transform_world()
+		elif k in ['left',  'S+left']:  self.tx['shift'][1] -= inc_10_or_1; self.transform_world()
+		elif k in ['prior', 'S+prior']: self.tx['rotate'] += inc_10_or_1; self.transform_world()
+		elif k in ['next',  'S+next']:  self.tx['rotate'] -= inc_10_or_1; self.transform_world()
+		elif k in ['home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
+		elif k in ['end']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
+		elif k in ['backspace', 'delete']: self.world.clear(); self.automaton.reset()
+		elif k in ['z', 'S+z']: self.load_animal_ID(self.animal_ID, mode='composite' if 'S+' in k else 'Replace')
+		elif k in ['x', 'S+x']: self.load_part(self.fore, is_random=True, mode='composite' if 'S+' in k else 'Add')
+		elif k in ['c', 'S+c']: self.load_animal_ID(self.animal_ID - inc_1_or_10)
+		elif k in ['v', 'S+v']: self.load_animal_ID(self.animal_ID + inc_1_or_10)
+		elif k in ['m']: self.center_world()
+		elif k in ['C+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
+		elif k in ['C+z']: self.is_auto_load = not self.is_auto_load
+		elif k in ['C+c', 'S+C+c', 'C+s', 'S+C+s']:
+			A = copy.deepcopy(self.world)
+			A.crop(1/255)
+			data = A.to_data(is_shorten='S+' not in k)
+			if k.endswith('c'):
+				self.clipboard_st = json.dumps(data, separators=(',', ':'))
+				self.win.clipboard_clear()
+				self.win.clipboard_append(self.clipboard_st)
+				# print(self.clipboard_st)
+				self.status = "> board saved to clipboard"
+			elif k.endswith('s'):
+				with open('last_animal.json', 'w') as file:
+					json.dump(data, file, separators=(',', ':'))
+				with open('last_animal.rle', 'w') as file:
+					file.write('#N '+A.long_name()+'\n')
+					file.write('x = '+str(A.cells.shape[1])+', y = '+str(A.cells.shape[0])+', rule = Lenia('+A.params2st()+')\n')
+					file.write(data['cells'].replace('$','$\n')+'\n')
+				self.status = "> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle')
+		elif k in ['C+v', 'S+C+v']:
+			self.clipboard_st = self.win.clipboard_get()
+			data = json.loads(self.clipboard_st)
+			self.load_part(Board.from_data(data), zoom=1, mode='composite' if 'S+' in k else 'Replace')
+		elif k in ['quoteleft']: self.is_composite = False
+		elif k in ['C+r', 'S+C+r']: self.recorder.toggle_recording(is_save_frames='S+' in k)
+		elif k.endswith('_l') or k.endswith('_r'): is_ignore = True
+		else: self.excess_key = k
+
+		if not is_ignore:
+			self.world.params = {k:round(x, ROUND) if type(x)==float else x for (k,x) in self.world.params.items()}
+			self.tx = {k:round(x, ROUND) if type(x)==float else x for (k,x) in self.tx.items()}
+			self.automaton.calc_once(is_update=False)
+			self.update_info()
+
+	def clear_screen(self):
+		_ = os.system('cls' if os.name == 'nt' else 'clear')
+
+	def format_colors(self, st):
+		P = '\033[95m'  # HEADER purple
+		B = '\033[94m'  # OKPLUE
+		G = '\033[92m'  # OKGREEN
+		Y = '\033[93m'  # WARNING yellow
+		R = '\033[91m'  # FAIL red
+		E = '\033[0m'  # ENDC
+		H = '\033[1m'  # BOLD
+		U = '\033[4m'  # UNDERLINE
+		return st.replace("[[",P).replace("]]",E) \
+			.replace("{",G+"{").replace("}","}"+E) \
+			.replace("(",B+"(").replace(")",")"+E) \
+			.replace("<<",Y).replace(">>",E)
+
+	def update_info(self):
+		show_name = ["world", "potential", "field", "change", "kernel"]
+		kernel_core_name = ["polynomial", "gaussian"]
+		field_func_name = ["polynomial", "gaussian"]
+		self.clear_screen()
+		# self.win.title(st)
+		print(self.format_colors("[[Lenia]]  {rec}")
+			.format(rec=chr(0x2B24)+"REC" if self.recorder.is_recording else ""))
+		print(self.format_colors("status [{run}](enter,space)  display [{show}](tab)")
+			.format(run="running" if self.is_run else "stopped", show=show_name[self.show_what]))
+		print(self.format_colors("animal [{name}](Z,X,C,V) \xD7{zoom}")
+			.format(name=self.world.long_name(), zoom=self.zoom))
+		print(self.format_colors("copy&paste [{composite}][{auto_load}](^C,^V,`,^Z)  center [{auto_center}](M,^M)")
+			.format(composite="composite" if self.is_composite else "", auto_load="auto" if self.is_auto_load else "", auto_center="auto" if self.is_auto_center else ""))
+		if self.world.params is not None:
+			# print("params [[{params}]]"
+				# .format(params=self.world.params2st()))
+			params2 = self.world.params.copy()
+			params2['b'] = Board.fracs2st(params2['b'])
+			print(self.format_colors("parameters R[{R}](R,F) T[{T}](T,G) b[{b}] m[{m}](Q,A) s[{s}](W,S)")
+				.format(**params2))
+			print(self.format_colors("functions kernal[{kn}](^Y) field[{gn}](^U)")
+				.format(kn=kernel_core_name[(params2.get('kn') or self.automaton.kn) - 1], gn=field_func_name[(params2.get('gn') or self.automaton.gn) - 1]))
+		if self.excess_key is not None:
+			print("key [{key}]".format(key=self.excess_key))
+		print("")
+		print(self.format_colors("<<"+self.status+">>"))
+
 if __name__ == '__main__':
 	lenia = Lenia()
-	lenia.load_preset_part(1, zoom=8)
+	lenia.load_animal_ID(4, zoom=8)
 	lenia.update_info()
 	lenia.loop()
 
