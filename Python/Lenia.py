@@ -18,7 +18,7 @@ SIZEX, SIZEY = 1 << 8, 1 << 8
 # SIZEX, SIZEY = 1920, 1080  # 1080p HD
 # SIZEX, SIZEY = 1280, 720  # 720p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
-DEF_ZOOM = 4
+DEF_ZOOM = 3
 EPSILON = 1e-10
 ROUND = 10
 
@@ -159,7 +159,7 @@ class Recorder:
 	def __init__(self):
 		self.is_recording = False
 		self.is_save_frames = False
-		self.record_ID = None
+		self.record_id = None
 		self.record_seq = None
 
 	def toggle_recording(self, is_save_frames=False):
@@ -173,19 +173,19 @@ class Recorder:
 		''' https://github.com/cisco/openh264/ '''
 		self.is_recording = True
 		self.status = "> start " + ("saving frames and " if self.is_save_frames else "") + "recording video..."
-		self.record_ID = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+		self.record_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 		self.record_seq = 1
 		if self.is_save_frames:
-			self.img_dir = os.path.join(RECORD_ROOT, self.record_ID)
+			self.img_dir = os.path.join(RECORD_ROOT, self.record_id)
 			if not os.path.exists(self.img_dir):
 				os.makedirs(self.img_dir)
-		self.video_path = os.path.join(RECORD_ROOT, '{}'.format(self.record_ID) + VIDEO_EXT)
+		self.video_path = os.path.join(RECORD_ROOT, '{}'.format(self.record_id) + VIDEO_EXT)
 		codec = cv2.VideoWriter_fourcc(*VIDEO_CODEC)
 		self.video = cv2.VideoWriter(self.video_path, codec, 24, (SIZEX,SIZEY))
 
 	def record_frame(self, img):
 		if self.is_save_frames:
-			img_path = os.path.join(RECORD_ROOT, self.record_ID, '{:03d}'.format(self.record_seq) + FRAME_EXT)
+			img_path = os.path.join(RECORD_ROOT, self.record_id, '{:03d}'.format(self.record_seq) + FRAME_EXT)
 			img.save(img_path)
 		else:
 			img_rgb = np.array(img.convert('RGB'))
@@ -220,11 +220,12 @@ class Automaton:
 		self.potential = np.zeros(world.cells.shape)
 		self.field = np.zeros(world.cells.shape)
 		self.field_old = None
+		self.change = np.zeros(world.cells.shape)
 		self.calc_kernel()
 		self.gen = 0
 		self.time = 0
 		self.is_multistep = False
-		self.is_clip = True
+		self.clip_mode = 0
 		self.kn = 1
 		self.gn = 1
 
@@ -236,23 +237,43 @@ class Automaton:
 		kfunc = Automaton.kernel_core[(self.world.params.get('kn') or self.kn) - 1]
 		return (r<1) * kfunc(np.minimum(kr % 1, 1)) * b
 
+	@staticmethod
+	def soft_max(x, m, k):
+		''' https://www.johndcook.com/blog/2010/01/13/soft-maximum/ '''
+		return np.log(np.exp(k*x) + np.exp(k*m)) / k
+
+	@staticmethod
+	def soft_clip(x, min, max, k):
+		a = np.exp(k*x)
+		b = np.exp(k*min)
+		c = np.exp(-k*max)
+		return np.log( 1/(a+b)+c ) / -k
+		# return Automaton.soft_max(Automaton.soft_max(x, min, k), max, -k)
+
 	def calc_once(self, is_update=True):
-		world_FFT = np.fft.fft2(self.world.cells)
+		A = self.world.cells
+		world_FFT = np.fft.fft2(A)
 		potential_shifted = np.real(np.fft.ifft2(self.kernel_FFT * world_FFT))
 		self.potential = np.roll(potential_shifted, (MIDY, MIDX), (0, 1))
 		gfunc = Automaton.field_func[(self.world.params.get('gn') or self.gn) - 1]
 		self.field = gfunc(self.potential, self.world.params['m'], self.world.params['s'])
 		dt = 1 / self.world.params['T']
 		if self.is_multistep and self.field_old is not None:
-			cells_new = self.world.cells + 1/2 * dt * (3 * self.field - self.field_old)
+			D = 1/2 * (3 * self.field - self.field_old)
 			self.field_old = self.field.copy()
 		else:
-			cells_new = self.world.cells + dt * self.field
-		if self.is_clip:
-			cells_new = np.clip(cells_new, 0, 1)
-		self.change = (cells_new - self.world.cells) / dt
+			D = self.field
+		if self.clip_mode==0:
+			A_new = np.clip(A + dt * D, 0, 1)
+		elif self.clip_mode==1:
+			A_new = A + dt * np.clip(D, -A/dt, (1-A)/dt)
+		elif self.clip_mode==2:
+			A_new = Automaton.soft_clip(A + dt * D, 0, 1, 1/dt)
+		elif self.clip_mode==3:
+			A_new = A + dt * Automaton.soft_clip(D, -A/dt, (1-A)/dt, 1)
+		self.change = (A_new - A) / dt
 		if is_update:
-			self.world.cells = cells_new
+			self.world.cells = A_new
 		self.gen += 1
 		self.time += dt
 
@@ -289,7 +310,7 @@ class Lenia:
 			self.create_colormap(256, np.array([[0,0,4,8,8,8,4,0,0],[2,4,6,8,4,0,0,0,0],[0,0,0,0,4,8,8,8,4]])), #GYPB
 			self.create_colormap(256, np.array([[4,8,8,8,4,0,0,0,0],[0,0,4,8,8,8,6,4,2],[0,0,0,0,0,0,0,0,0]])), #RYGG
 			self.create_colormap(256, np.array([[0,3,4,5,8],[0,3,4,5,8],[0,3,4,5,8]]))] #B/W
-		self.colormap_ID = 0
+		self.colormap_id = 0
 		self.status = ""
 
 		self.read_animals()
@@ -311,25 +332,32 @@ class Lenia:
 		with open('animals.json', encoding='utf-8') as file:
 			self.animal_data = json.load(file)
 
-	def load_animal_ID(self, ID, **kwargs):
-		self.animal_ID = max(0, min(len(self.animal_data)-1, ID))
-		self.load_part(Board.from_data(self.animal_data[self.animal_ID]), **kwargs)
+	def load_animal_id(self, id, **kwargs):
+		self.animal_id = max(0, min(len(self.animal_data)-1, id))
+		self.load_part(Board.from_data(self.animal_data[self.animal_id]), **kwargs)
 
-	def load_part(self, part, mode='Replace', is_random=False, zoom=None, is_set_params=True):
+	def load_animal_code(self, code, **kwargs):
+		code_sp = code.split(':')
+		n = int(code_sp[1]) if len(code_sp)==2 else 1
+		it = (id for (id, data) in enumerate(self.animal_data) if data["code"]==code_sp[0])
+		for i in range(n):
+			id = next(it, None)
+		if id is not None:
+			self.load_animal_id(id, **kwargs)
+
+	def load_part(self, part, is_replace=True, is_random=False, zoom=None, is_set_params=True):
 		self.fore = part
 		if zoom == None:
 			zoom = self.zoom
 		if part.names[0].startswith('~'):
 			part.names[0] = part.names[0].lstrip('~')
 			zoom = 1
-		if mode=='Replace':
+		if is_replace:
 			self.world.names = part.names.copy()
 		if part.params is not None and part.cells is not None:
-			self.is_composite = False
-			if mode=='composite':
+			if self.is_composite:
 				self.back = copy.deepcopy(self.world)
-				self.is_composite = True
-			elif mode=='Replace':
+			if is_replace and not self.is_composite:
 				if is_set_params:
 					self.world.params = part.params.copy()
 					self.world.params['R'] *= zoom
@@ -377,6 +405,12 @@ class Lenia:
 		tx = {'shift':[MIDY - cy, MIDX - cx]}
 		self.world.transform(tx, mode='S', is_world=True)
 
+	def clear_world(self):
+		self.world.clear()
+		if self.is_composite:
+			self.back = copy.deepcopy(self.world)
+		self.automaton.reset()
+
 	def create_window(self):
 		self.win = tk.Tk()
 		self.win.title('Lenia')
@@ -408,11 +442,12 @@ class Lenia:
 		return np.rint(c / 8 * 255).astype(int).tolist()
 
 	def show_world(self):
-		if self.show_what == 0: self.show_panel(self.panel1, self.world.cells, 0, 1)
-		elif self.show_what == 1: self.show_panel(self.panel1, self.automaton.potential, 0, 0.3)
-		elif self.show_what == 2: self.show_panel(self.panel1, self.automaton.field, -1, 1)
-		elif self.show_what == 3: self.show_panel(self.panel1, self.automaton.change, -1, 1)
-		elif self.show_what == 4: self.show_panel(self.panel1, self.automaton.kernel, 0, 1)
+		change_range = 1.4 if self.automaton.clip_mode>=2 else 1
+		if self.show_what==0: self.show_panel(self.panel1, self.world.cells, 0, 1)
+		elif self.show_what==1: self.show_panel(self.panel1, self.automaton.potential, 0, 1.9*self.world.params['m'])
+		elif self.show_what==2: self.show_panel(self.panel1, self.automaton.field, -1, 1)
+		elif self.show_what==3: self.show_panel(self.panel1, self.automaton.change, -change_range, change_range)
+		elif self.show_what==4: self.show_panel(self.panel1, self.automaton.kernel, 0, 1)
 		# if not self.kernel_updated:
 			# self.show_panel(self.panel4, self.kernel, 0, 1)
 			# self.kernel_updated = True
@@ -421,7 +456,7 @@ class Lenia:
 	def show_panel(self, panel, A, vmin=0, vmax=1):
 		buffer = np.uint8((A-vmin) / (vmax-vmin) * 255).copy(order='C')
 		img = Image.frombuffer('P', (SIZEX,SIZEY), buffer, 'raw', 'P', 0, 1)
-		img.putpalette(self.colormap[self.colormap_ID])
+		img.putpalette(self.colormap[self.colormap_id])
 		if self.recorder.is_recording:
 			self.recorder.record_frame(img)
 		photo = ImageTk.PhotoImage(image=img)
@@ -453,12 +488,13 @@ class Lenia:
 				self.is_once = False
 			self.show_world()
 
+	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'P4(a)', '4':'3G:4'}
 	def key_press(self, event):
 		# Win: shift_l/r(0x1) caps_lock(0x2) control_l/r(0x4) alt_l/r(0x20000) win/app/alt_r/control_r(0x40000)
 		# Mac: shift_l(0x1) caps_lock(0x2) control_l(0x4) meta_l(0x8,command) alt_l(0x10) super_l(0x40,fn)
 		k = event.keysym.lower()
 		s = event.state
-		# print(k + '[' + hex(event.state) + ']'); return
+		# print('keysym[{0.keysym}] char[{0.char}] keycode[{0.keycode}] state[{1}]'.format(event, hex(event.state))); return
 		if s & 0x20000: k = 'A+' + k  # Win: Alt
 		#if s & 0x8: k = 'C+' + k  # Mac: Meta/Command
 		if s & 0x4: k = 'C+' + k  # Win/Mac: Control
@@ -482,12 +518,12 @@ class Lenia:
 		elif k in ['s', 'S+s']: self.world.params['s'] -= inc_10_or_1 * 0.0001; self.check_auto_load()
 		elif k in ['t', 'S+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // double_or_not - inc_or_not))
 		elif k in ['g', 'S+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  double_or_not + inc_or_not))
-		elif k in ['C+y']: self.automaton.kn = (self.automaton.kn + inc_or_dec - 1) % len(self.automaton.kernel_core) + 1
-		elif k in ['C+u']: self.automaton.gn = (self.automaton.gn + inc_or_dec - 1) % len(self.automaton.field_func) + 1
-		# elif k in ['C+i']: self.automaton.is_clip = not self.automaton.is_clip
+		elif k in ['C+y', 'S+C+y']: self.automaton.kn = (self.automaton.kn + inc_or_dec - 1) % len(self.automaton.kernel_core) + 1
+		elif k in ['C+u', 'S+C+u']: self.automaton.gn = (self.automaton.gn + inc_or_dec - 1) % len(self.automaton.field_func) + 1
+		elif k in ['C+i', 'S+C+i']: self.automaton.clip_mode = (self.automaton.clip_mode + inc_or_dec) % 4
 		elif k in ['C+o']: self.automaton.is_multistep = not self.automaton.is_multistep
 		elif k in ['C+p']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
-		elif k in ['equal', 'S+plus']: self.colormap_ID = (self.colormap_ID + inc_or_dec) % len(self.colormap)
+		elif k in ['equal', 'S+plus']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormap)
 		elif k in ['tab', 'S+tab']: self.show_what = (self.show_what + inc_or_dec) % 5
 		elif k in ['r', 'S+r']: self.set_zoom(+inc_mul_or_not, +inc_or_not); self.transform_world()
 		elif k in ['f', 'S+f']: self.set_zoom(-inc_mul_or_not, -inc_or_not); self.transform_world()
@@ -499,11 +535,12 @@ class Lenia:
 		elif k in ['next',  'S+next']:  self.tx['rotate'] -= inc_10_or_1; self.transform_world()
 		elif k in ['home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
 		elif k in ['end']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
-		elif k in ['backspace', 'delete']: self.world.clear(); self.automaton.reset()
-		elif k in ['z', 'S+z']: self.load_animal_ID(self.animal_ID, mode='composite' if 'S+' in k else 'Replace')
-		elif k in ['x', 'S+x']: self.load_part(self.fore, is_random=True, mode='composite' if 'S+' in k else 'Add')
-		elif k in ['c', 'S+c']: self.load_animal_ID(self.animal_ID - inc_1_or_10)
-		elif k in ['v', 'S+v']: self.load_animal_ID(self.animal_ID + inc_1_or_10)
+		elif k in ['backspace', 'delete']: self.clear_world()
+		elif k in ['z', 'S+z']: self.load_animal_id(self.animal_id)
+		elif k in ['x', 'S+x']: self.load_part(self.fore, is_random=True, is_replace=False)
+		elif k in ['c', 'S+c']: self.load_animal_id(self.animal_id - inc_1_or_10)
+		elif k in ['v', 'S+v']: self.load_animal_id(self.animal_id + inc_1_or_10)
+		elif k in [str(i) for i in range(10)] + ['S'+str(i) for i in range(10)]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k))
 		elif k in ['m']: self.center_world()
 		elif k in ['C+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
 		elif k in ['C+z']: self.is_auto_load = not self.is_auto_load
@@ -528,8 +565,8 @@ class Lenia:
 		elif k in ['C+v', 'S+C+v']:
 			self.clipboard_st = self.win.clipboard_get()
 			data = json.loads(self.clipboard_st)
-			self.load_part(Board.from_data(data), zoom=1, mode='composite' if 'S+' in k else 'Replace')
-		elif k in ['quoteleft']: self.is_composite = False
+			self.load_part(Board.from_data(data), zoom=1)
+		elif k in ['C+x']: self.is_composite = not self.is_composite
 		elif k in ['C+r', 'S+C+r']: self.recorder.toggle_recording(is_save_frames='S+' in k)
 		elif k.endswith('_l') or k.endswith('_r'): is_ignore = True
 		else: self.excess_key = k
@@ -558,36 +595,47 @@ class Lenia:
 			.replace("<<",Y).replace(">>",E)
 
 	def update_info(self):
-		show_name = ["world", "potential", "field", "change", "kernel"]
-		kernel_core_name = ["polynomial", "gaussian"]
-		field_func_name = ["polynomial", "gaussian"]
 		self.clear_screen()
 		# self.win.title(st)
-		print(self.format_colors("[[Lenia]]  {rec}")
-			.format(rec=chr(0x2B24)+"REC" if self.recorder.is_recording else ""))
-		print(self.format_colors("status [{run}](enter,space)  display [{show}](tab)")
-			.format(run="running" if self.is_run else "stopped", show=show_name[self.show_what]))
-		print(self.format_colors("animal [{name}](Z,X,C,V) \xD7{zoom}")
-			.format(name=self.world.long_name(), zoom=self.zoom))
-		print(self.format_colors("copy&paste [{composite}][{auto_load}](^C,^V,`,^Z)  center [{auto_center}](M,^M)")
-			.format(composite="composite" if self.is_composite else "", auto_load="auto" if self.is_auto_load else "", auto_center="auto" if self.is_auto_center else ""))
+		print(self.format_colors("[[Lenia]]"))
+		print(self.format_colors("status [{run}](enter,space)  display [{show}](tab)").format(
+			run=["stopped","running"][self.is_run],
+			show=["world","potential","field","change","kernel"][self.show_what]))
+		print(self.format_colors("animal {id}:[{name}](Z,X,C,V,0-9) \xD7{zoom}").format(
+			id=self.animal_id,
+			name=self.world.long_name(),
+			zoom=self.zoom))
 		if self.world.params is not None:
-			# print("params [[{params}]]"
-				# .format(params=self.world.params2st()))
+			# print("params [[{params}]]".format(
+				# params=self.world.params2st()))
 			params2 = self.world.params.copy()
 			params2['b'] = Board.fracs2st(params2['b'])
-			print(self.format_colors("parameters R[{R}](R,F) T[{T}](T,G) b[{b}] m[{m}](Q,A) s[{s}](W,S)")
-				.format(**params2))
-			print(self.format_colors("functions kernal[{kn}](^Y) field[{gn}](^U)")
-				.format(kn=kernel_core_name[(params2.get('kn') or self.automaton.kn) - 1], gn=field_func_name[(params2.get('gn') or self.automaton.gn) - 1]))
+			print(self.format_colors("params R[{R}](R,F) T[{T}](T,G) b[{b}] m[{m}](Q,A) s[{s}](W,S)").format(
+				**params2))
+		print()
+		print(self.format_colors("edit clear(bkspc) move(arrows,pgup/dn,home/end)"))
+		print(self.format_colors("util center[{auto_center}](M,^M)  copy&paste[{composite}][{auto_load}](^C,^V,^X,^Z)  save(^S)  record[{rec}](^R)").format(
+			composite=["","composite"][self.is_composite],
+			auto_load=["","auto"][self.is_auto_load],
+			auto_center=["","auto"][self.is_auto_center],
+			rec=["",chr(0x2B24)+"REC"][self.recorder.is_recording]))
+		if self.world.params is not None:
+			print(self.format_colors("calc kernal[{kn}](^Y) field[{gn}](^U)").format(
+				kn=["polynomial","gaussian"][(self.world.params.get('kn') or self.automaton.kn) - 1],
+				gn=["polynomial","gaussian"][(self.world.params.get('gn') or self.automaton.gn) - 1]))
+		if self.world.params is not None:
+			print(self.format_colors("  clip[{clip}](^I) step[{step}](^O)  inverse[{inverse}](^P)").format(
+				clip=["world hard","field hard","world soft","field soft"][self.automaton.clip_mode],
+				step=["single","multi"][self.automaton.is_multistep],
+				inverse=["","on"][self.world.params['T']<0]))
 		if self.excess_key is not None:
 			print("key [{key}]".format(key=self.excess_key))
-		print("")
+		print()
 		print(self.format_colors("<<"+self.status+">>"))
 
 if __name__ == '__main__':
 	lenia = Lenia()
-	lenia.load_animal_ID(4, zoom=8)
+	lenia.load_animal_code(lenia.ANIMAL_KEY_LIST['1'], zoom=8)
 	lenia.update_info()
 	lenia.loop()
 
