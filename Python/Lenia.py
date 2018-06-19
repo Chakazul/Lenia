@@ -1,12 +1,14 @@
+''''
+pip3 install numpy
+pip3 install scipy
+pip3 install opencv-python
+pip3 install pillow
+'''
 import numpy as np
 import scipy.ndimage as snd
 from fractions import Fraction
-import copy
-import re
-import itertools
-import datetime
-import os
-import json
+import copy, re, itertools, json
+import datetime, os, sys
 import cv2
 from PIL import Image, ImageTk
 try:
@@ -300,7 +302,7 @@ class Lenia:
 		self.is_once = False
 		self.fore = None
 		self.back = None
-		self.is_composite = False
+		self.is_layered = False
 		self.is_auto_center = False
 		self.is_auto_load = False
 		self.show_what = 0
@@ -355,9 +357,9 @@ class Lenia:
 		if is_replace:
 			self.world.names = part.names.copy()
 		if part.params is not None and part.cells is not None:
-			if self.is_composite:
+			if self.is_layered:
 				self.back = copy.deepcopy(self.world)
-			if is_replace and not self.is_composite:
+			if is_replace and not self.is_layered:
 				if is_set_params:
 					self.world.params = part.params.copy()
 					self.world.params['R'] *= zoom
@@ -382,7 +384,7 @@ class Lenia:
 		self.tx['R'] += R_add
 
 	def transform_world(self):
-		if self.is_composite:
+		if self.is_layered:
 			self.world.cells = self.back.cells.copy()
 			self.world.params = self.back.params.copy()
 			self.world.transform(self.tx, mode='Z', is_world=True)
@@ -407,7 +409,7 @@ class Lenia:
 
 	def clear_world(self):
 		self.world.clear()
-		if self.is_composite:
+		if self.is_layered:
 			self.back = copy.deepcopy(self.world)
 		self.automaton.reset()
 
@@ -482,19 +484,20 @@ class Lenia:
 				self.automaton.calc_once()
 				if self.is_auto_center:
 					self.center_world()
-				if not self.is_composite:
+				if not self.is_layered:
 					self.back = None
 					self.clear_transform()
 				self.is_once = False
 			self.show_world()
 
-	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'P4(a)', '4':'3G:4'}
+	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'P4(a)', '4':'3G:4', '5':'4Q(5,5,5,5):3'}
 	def key_press(self, event):
+		''' https://www.tcl.tk/man/tcl8.6/TkCmd/keysyms.htm '''
 		# Win: shift_l/r(0x1) caps_lock(0x2) control_l/r(0x4) alt_l/r(0x20000) win/app/alt_r/control_r(0x40000)
 		# Mac: shift_l(0x1) caps_lock(0x2) control_l(0x4) meta_l(0x8,command) alt_l(0x10) super_l(0x40,fn)
+		# print('keysym[{0.keysym}] char[{0.char}] keycode[{0.keycode}] state[{1}]'.format(event, hex(event.state))); return
 		k = event.keysym.lower()
 		s = event.state
-		# print('keysym[{0.keysym}] char[{0.char}] keycode[{0.keycode}] state[{1}]'.format(event, hex(event.state))); return
 		if s & 0x20000: k = 'A+' + k  # Win: Alt
 		#if s & 0x8: k = 'C+' + k  # Mac: Meta/Command
 		if s & 0x4: k = 'C+' + k  # Win/Mac: Control
@@ -566,7 +569,7 @@ class Lenia:
 			self.clipboard_st = self.win.clipboard_get()
 			data = json.loads(self.clipboard_st)
 			self.load_part(Board.from_data(data), zoom=1)
-		elif k in ['C+x']: self.is_composite = not self.is_composite
+		elif k in ['C+x']: self.is_layered = not self.is_layered
 		elif k in ['C+r', 'S+C+r']: self.recorder.toggle_recording(is_save_frames='S+' in k)
 		elif k.endswith('_l') or k.endswith('_r'): is_ignore = True
 		else: self.excess_key = k
@@ -581,18 +584,10 @@ class Lenia:
 		_ = os.system('cls' if os.name == 'nt' else 'clear')
 
 	def format_colors(self, st):
-		P = '\033[95m'  # HEADER purple
-		B = '\033[94m'  # OKPLUE
-		G = '\033[92m'  # OKGREEN
-		Y = '\033[93m'  # WARNING yellow
-		R = '\033[91m'  # FAIL red
-		E = '\033[0m'  # ENDC
-		H = '\033[1m'  # BOLD
-		U = '\033[4m'  # UNDERLINE
-		return st.replace("[[",P).replace("]]",E) \
-			.replace("{",G+"{").replace("}","}"+E) \
-			.replace("(",B+"(").replace(")",")"+E) \
-			.replace("<<",Y).replace(">>",E)
+		return st.replace('[[',term(M)).replace(']]',term(RESET)) \
+			.replace('{',term(G)+'{').replace('}','}'+term(RESET)) \
+			.replace('(',term(B)+'(').replace(')',')'+term(RESET)) \
+			.replace('<<',term(Y)).replace('>>',term(RESET))
 
 	def update_info(self):
 		self.clear_screen()
@@ -614,8 +609,8 @@ class Lenia:
 				**params2))
 		print()
 		print(self.format_colors("edit clear(bkspc) move(arrows,pgup/dn,home/end)"))
-		print(self.format_colors("util center[{auto_center}](M,^M)  copy&paste[{composite}][{auto_load}](^C,^V,^X,^Z)  save(^S)  record[{rec}](^R)").format(
-			composite=["","composite"][self.is_composite],
+		print(self.format_colors("util center[{auto_center}](M,^M)  copy&paste[{layered}][{auto_load}](^C,^V,^X,^Z)  save(^S)  record[{rec}](^R)").format(
+			layered=["","layered"][self.is_layered],
 			auto_load=["","auto"][self.is_auto_load],
 			auto_center=["","auto"][self.is_auto_center],
 			rec=["",chr(0x2B24)+"REC"][self.recorder.is_recording]))
@@ -632,6 +627,15 @@ class Lenia:
 			print("key [{key}]".format(key=self.excess_key))
 		print()
 		print(self.format_colors("<<"+self.status+">>"))
+
+''' https://misc.flogisoft.com/bash/tip_colors_and_formatting '''
+RESET = 0; BOLD = 1; DIM = 2; UNDERSCORE = 4; BLINK = 5; REVERSE = 7; HIDDEN = 8; UNDO = +20
+K = 30; R = 31; G = 32; Y = 33; B = 34; M = 35; C = 36; W = 37; DEFAULT = 39; BACK = +10; L = +60
+# K=black/light gray, R=red, G=green, Y=yellow, B=blue, M=magenta, C=cyan, W=dark gray/white, L=light
+# e.g. term(BACK+L+B)
+def term(x):
+	return '\033[' + str(x) + 'm' if SUPPORTS_COLOR else ''
+SUPPORTS_COLOR = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
 
 if __name__ == '__main__':
 	lenia = Lenia()
