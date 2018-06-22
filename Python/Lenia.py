@@ -16,7 +16,7 @@ try:
 except ImportError:
 	import Tkinter as tk
 
-SIZEX, SIZEY = 1 << 8, 1 << 8
+SIZEX, SIZEY = 1 << 9, 1 << 8
 # SIZEX, SIZEY = 1920, 1080  # 1080p HD
 # SIZEX, SIZEY = 1280, 720  # 720p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
@@ -48,11 +48,13 @@ class Board:
 		self = cls()
 		self.names = [data.get('code',''), data.get('name',''), data.get('cname','')]
 		self.params = data.get('params')
-		if self.params is not None:
+		if self.params:
 			self.params = self.params.copy()
 			self.params['b'] = Board.st2fracs(self.params['b'])
 		self.cells = data.get('cells')
-		if self.cells is not None:
+		if self.cells:
+			if type(self.cells) in [tuple, list]:
+				self.cells = ''.join(self.cells)
 			self.cells = Board.rle2arr(self.cells)
 		return self
 
@@ -69,7 +71,8 @@ class Board:
 		return ','.join(['{}={}'.format(k,str(v)) for (k,v) in params2.items()])
 
 	def long_name(self):
-		return ' | '.join(filter(None, self.names))
+		# return ' | '.join(filter(None, self.names))
+		return '{1} {2}'.format(*self.names)
 	
 	@staticmethod
 	def arr2rle(A, is_shorten=True):
@@ -109,10 +112,10 @@ class Board:
 	def st2fracs(st):
 		return [Fraction(st) for st in st.split(',')]
 
-	def clear(self):
-		self.cells.fill(0)
+	def clear(self, value_min=0):
+		self.cells.fill(value_min)
 
-	def add(self, part, shift=[0,0]):
+	def add(self, part, shift=[0,0], value_min=0):
 		# assert self.params['R'] == part.params['R']
 		h1, w1 = self.cells.shape
 		h2, w2 = part.cells.shape
@@ -124,7 +127,7 @@ class Board:
 		# self.cells[j:j+h, i:i+w] = part.cells[0:h, 0:w]
 		for y in range(h):
 			for x in range(w):
-				if part.cells[j2+y, i2+x] > 0:
+				if part.cells[j2+y, i2+x] > value_min:
 					self.cells[(j1+y)%h1, (i1+x)%w1] = part.cells[j2+y, i2+x]
 		return self
 
@@ -145,13 +148,13 @@ class Board:
 			self.cells = np.flip(self.cells, tx['flip'])
 		return self
 
-	def add_transformed(self, part, tx):
+	def add_transformed(self, part, tx, value_min=0):
 		part = copy.deepcopy(part)
-		self.add(part.transform(tx, mode='RZF'), tx['shift'])
+		self.add(part.transform(tx, mode='RZF'), tx['shift'], value_min=value_min)
 		return self
 
-	def crop(self, min=1/255):
-		coords = np.argwhere(self.cells >= min)
+	def crop(self, value_min=0):
+		coords = np.argwhere(self.cells > value_min)
 		y0, x0 = coords.min(axis=0)
 		y1, x1 = coords.max(axis=0) + 1
 		self.cells = self.cells[y0:y1, x0:x1]
@@ -174,7 +177,7 @@ class Recorder:
 	def start_record(self):
 		''' https://github.com/cisco/openh264/ '''
 		self.is_recording = True
-		self.status = "> start " + ("saving frames and " if self.is_save_frames else "") + "recording video..."
+		self.status = "> start " + ("saving frames" if self.is_save_frames else "recording video") + "..."
 		self.record_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 		self.record_seq = 1
 		if self.is_save_frames:
@@ -260,7 +263,7 @@ class Automaton:
 		gfunc = Automaton.field_func[(self.world.params.get('gn') or self.gn) - 1]
 		self.field = gfunc(self.potential, self.world.params['m'], self.world.params['s'])
 		dt = 1 / self.world.params['T']
-		if self.is_multistep and self.field_old is not None:
+		if self.is_multistep and self.field_old:
 			D = 1/2 * (3 * self.field - self.field_old)
 			self.field_old = self.field.copy()
 		else:
@@ -313,6 +316,7 @@ class Lenia:
 		self.colormap_id = 0
 		self.status = ""
 		self.excess_key = None
+		self.value_min = 0
 
 		self.read_animals()
 		self.world = Board((SIZEY, SIZEX))
@@ -339,8 +343,7 @@ class Lenia:
 
 	def load_animal_code(self, code, **kwargs):
 		id = self.get_animal_id(code)
-		if id is not None:
-			self.load_animal_id(id, **kwargs)
+		if id: self.load_animal_id(id, **kwargs)
 
 	def get_animal_id(self, code):
 		code_sp = code.split(':')
@@ -367,7 +370,7 @@ class Lenia:
 					self.world.params = part.params.copy()
 					self.world.params['R'] *= zoom
 					self.automaton.calc_kernel()
-				self.world.clear()
+				self.world.clear(value_min=self.value_min)
 				self.automaton.reset()
 			self.clear_transform()
 			if is_random:
@@ -377,13 +380,13 @@ class Lenia:
 				self.tx['shift'][1] = np.random.randint(w1 + w) - w1//2
 				self.tx['shift'][0] = np.random.randint(h1 + h) - h1//2
 				self.tx['flip'] = np.random.randint(3) - 1
-			self.world.add_transformed(part, self.tx)
+			self.world.add_transformed(part, self.tx, value_min=self.value_min)
 
 	def set_zoom(self, zoom_add, R_add):
 		if zoom_add != 0:
 			zoom_old = self.zoom
 			self.zoom = max(1, self.zoom + zoom_add)
-			self.tx['R'] = self.fore.params['R'] // zoom_old * self.zoom
+			self.tx['R'] = self.tx['R'] // zoom_old * self.zoom
 		self.tx['R'] += R_add
 		print(self.fore.params['R'])
 
@@ -392,7 +395,7 @@ class Lenia:
 			self.world.cells = self.back.cells.copy()
 			self.world.params = self.back.params.copy()
 			self.world.transform(self.tx, mode='Z', is_world=True)
-			self.world.add_transformed(self.fore, self.tx)
+			self.world.add_transformed(self.fore, self.tx, value_min=self.value_min)
 		else:
 			if not self.is_run:
 				if self.back is None:
@@ -412,7 +415,7 @@ class Lenia:
 		self.world.transform(tx, mode='S', is_world=True)
 
 	def clear_world(self):
-		self.world.clear()
+		self.world.clear(value_min=self.value_min)
 		if self.is_layered:
 			self.back = copy.deepcopy(self.world)
 		self.automaton.reset()
@@ -504,11 +507,9 @@ class Lenia:
 		mod = ''
 		if state & 0x1 or (key.isalpha() and len(key)==1 and key.isupper()): mod += 's+'
 		if state & 0x4: mod += 'c+'  # Win/Mac: Control
-		if state & 0x8: mod += 'm+'  # Mac: Meta/Command
+		# if state & 0x8: mod += 'M+'  # Mac: Meta/Command
 		if state & 0x20000: mod += 'a+'  # Win: Alt
-		if key.isalpha() and len(key)==1:
-			key = key.upper()
-		self.key_press(mod + key)
+		self.key_press(mod + key.lower())
 
 	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'P4(a)', '4':'3G:4', '5':'4Q(5,5,5,5):3'}
 	def key_press(self, k):
@@ -522,66 +523,71 @@ class Lenia:
 		is_ignore = False
 		self.excess_key = None
 		self.status = ""
-		if k in ['Escape']: self.close()
-		elif k in ['Enter', 'Return']: self.is_run = not self.is_run
+		if k in ['escape']: self.close()
+		elif k in ['enter', 'return']: self.is_run = not self.is_run
 		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
-		elif k in ['Q', 's+Q']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load()
-		elif k in ['A', 's+A']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load()
-		elif k in ['W', 's+W']: self.world.params['s'] += inc_10_or_1 * 0.0001; self.check_auto_load()
-		elif k in ['S', 's+S']: self.world.params['s'] -= inc_10_or_1 * 0.0001; self.check_auto_load()
-		elif k in ['T', 's+T']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // double_or_not - inc_or_not))
-		elif k in ['G', 's+G']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  double_or_not + inc_or_not))
-		elif k in ['R', 's+R']: self.set_zoom(+inc_mul_or_not, +inc_or_not); self.transform_world()
-		elif k in ['F', 's+F']: self.set_zoom(-inc_mul_or_not, -inc_or_not); self.transform_world()
-		elif k in ['c+Y', 's+c+Y']: self.automaton.kn = (self.automaton.kn + inc_or_dec - 1) % len(self.automaton.kernel_core) + 1
-		elif k in ['c+U', 's+c+U']: self.automaton.gn = (self.automaton.gn + inc_or_dec - 1) % len(self.automaton.field_func) + 1
-		elif k in ['c+I', 's+c+I']: self.automaton.clip_mode = (self.automaton.clip_mode + inc_or_dec) % 2
-		elif k in ['c+O']: self.automaton.is_multistep = not self.automaton.is_multistep
-		elif k in ['c+P']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
-		elif k in ['equal', 's+plus']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormap)
-		elif k in ['Tab', 's+Tab']: self.show_what = (self.show_what + inc_or_dec) % 5
-		elif k in ['Down',  's+Down']:  self.tx['shift'][0] += inc_10_or_1; self.transform_world()
-		elif k in ['Up',    's+Up']:    self.tx['shift'][0] -= inc_10_or_1; self.transform_world()
-		elif k in ['Right', 's+Right']: self.tx['shift'][1] += inc_10_or_1; self.transform_world()
-		elif k in ['Left',  's+Left']:  self.tx['shift'][1] -= inc_10_or_1; self.transform_world()
-		elif k in ['Prior', 'PageUp',   's+Prior', 's+PageUp']:   self.tx['rotate'] += inc_10_or_1; self.transform_world()
-		elif k in ['Next',  'PageDown', 's+Next',  's+PageDown']: self.tx['rotate'] -= inc_10_or_1; self.transform_world()
-		elif k in ['Home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
-		elif k in ['End']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
-		elif k in ['BackSpace', 'Delete']: self.clear_world()
-		elif k in ['Z']: self.load_animal_id(self.animal_id)
-		elif k in ['X']: self.load_part(self.fore, is_random=True, is_replace=False)
-		elif k in ['C', 's+C']: self.load_animal_id(self.animal_id - inc_1_or_10)
-		elif k in ['V', 's+V']: self.load_animal_id(self.animal_id + inc_1_or_10)
-		elif k in [str(i) for i in range(10)] + ['S'+str(i) for i in range(10)]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k))
-		elif k in ['M']: self.center_world()
-		elif k in ['c+M']: self.center_world(); self.is_auto_center = not self.is_auto_center
-		elif k in ['c+Z']: self.is_auto_load = not self.is_auto_load
-		elif k in ['c+C', 's+c+C', 'c+S', 's+c+S']:
+		elif k in ['quoteleft', 's+asciitilde']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormap)
+		elif k in ['tab', 's+tab']: self.show_what = (self.show_what + inc_or_dec) % 5
+		elif k in ['w', 's+w']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load()
+		elif k in ['s', 's+s']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load()
+		elif k in ['e', 's+e']: self.world.params['s'] += inc_10_or_1 * 0.0001; self.check_auto_load()
+		elif k in ['d', 's+d']: self.world.params['s'] -= inc_10_or_1 * 0.0001; self.check_auto_load()
+		elif k in ['t', 's+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // double_or_not - inc_or_not))
+		elif k in ['g', 's+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  double_or_not + inc_or_not))
+		elif k in ['r', 's+r']: self.set_zoom(+inc_mul_or_not, +inc_or_not); self.transform_world()
+		elif k in ['f', 's+f']: self.set_zoom(-inc_mul_or_not, -inc_or_not); self.transform_world()
+		elif k in ['c+y', 's+c+y']: self.automaton.kn = (self.automaton.kn + inc_or_dec - 1) % len(self.automaton.kernel_core) + 1
+		elif k in ['c+u', 's+c+u']: self.automaton.gn = (self.automaton.gn + inc_or_dec - 1) % len(self.automaton.field_func) + 1
+		elif k in ['c+i', 's+c+i']: self.automaton.clip_mode = (self.automaton.clip_mode + inc_or_dec) % 2; self.value_min = 0 if self.automaton.clip_mode==0 else 0.05
+		elif k in ['c+i']: self.automaton.is_multistep = not self.automaton.is_multistep
+		elif k in ['c+p']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells
+		elif k in ['down',  's+down']:  self.tx['shift'][0] += inc_10_or_1; self.transform_world()
+		elif k in ['up',    's+up']:    self.tx['shift'][0] -= inc_10_or_1; self.transform_world()
+		elif k in ['right', 's+right']: self.tx['shift'][1] += inc_10_or_1; self.transform_world()
+		elif k in ['left',  's+left']:  self.tx['shift'][1] -= inc_10_or_1; self.transform_world()
+		elif k in ['pageup',   's+pageup',   'prior', 's+prior']: self.tx['rotate'] += inc_10_or_1; self.transform_world()
+		elif k in ['pagedown', 's+pagedown', 'next',  's+next']:  self.tx['rotate'] -= inc_10_or_1; self.transform_world()
+		elif k in ['home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
+		elif k in ['end']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
+		elif k in ['equal']: pass # mirror
+		elif k in ['plus', 's+plus']: pass # mirror flip
+		elif k in ['m']: self.center_world()
+		elif k in ['c+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
+		elif k in ['backspace', 'delete']: self.clear_world()
+		elif k in ['q', 's+q']: self.load_animal_id(self.animal_id - inc_1_or_10)
+		elif k in ['a', 's+a']: self.load_animal_id(self.animal_id + inc_1_or_10)
+		elif k in ['z']: self.load_animal_id(self.animal_id)
+		elif k in ['x']: self.load_part(self.fore, is_random=True, is_replace=False)
+		elif k in ['c']: pass # random
+		elif k in ['v']: pass # random last seed
+		elif k in ['c+z']: self.is_auto_load = not self.is_auto_load
+		elif k in ['c+x']: self.is_layered = not self.is_layered
+		elif k in ['c+c', 's+c+c', 'c+s', 's+c+s']:
 			A = copy.deepcopy(self.world)
-			A.crop(1/255)
+			A.crop(value_min=self.value_min)
 			data = A.to_data(is_shorten='s+' not in k)
-			if k.endswith('C'):
+			if k.endswith('c'):
 				self.clipboard_st = json.dumps(data, separators=(',', ':'))
 				self.win.clipboard_clear()
 				self.win.clipboard_append(self.clipboard_st)
 				# print(self.clipboard_st)
 				self.status = "> board saved to clipboard"
-			elif k.endswith('S'):
-				with open('last_animal.json', 'w') as file:
-					json.dump(data, file, separators=(',', ':'))
-				with open('last_animal.rle', 'w') as file:
+			elif k.endswith('s'):
+				with open('last_animal.rle', 'w', encoding='utf8') as file:
 					file.write('#N '+A.long_name()+'\n')
 					file.write('x = '+str(A.cells.shape[1])+', y = '+str(A.cells.shape[0])+', rule = Lenia('+A.params2st()+')\n')
 					file.write(data['cells'].replace('$','$\n')+'\n')
+				data['cells'] = data['cells'].split('$')
+				with open('last_animal.json', 'w') as file:
+					json.dump(data, file, indent=4)
 				self.status = "> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle')
-		elif k in ['c+V']:
+		elif k in ['c+v']:
 			self.clipboard_st = self.win.clipboard_get()
 			data = json.loads(self.clipboard_st)
 			self.load_part(Board.from_data(data), zoom=1)
-		elif k in ['c+X']: self.is_layered = not self.is_layered
-		elif k in ['c+R', 's+c+R']: self.recorder.toggle_recording(is_save_frames='s+' in k)
-		elif k.endswith('_L') or k.endswith('_R'): is_ignore = True
+		elif k in ['c+r', 's+c+r']: self.recorder.toggle_recording(is_save_frames='s+' in k)
+		elif k in [str(i) for i in range(10)] + ['S'+str(i) for i in range(10)]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k))
+		elif k.endswith('_l') or k.endswith('_r'): is_ignore = True
 		else: self.excess_key = k
 
 		if not is_ignore and self.is_loop:
@@ -595,144 +601,139 @@ class Lenia:
 		# setattr(self, k, not getattr(self, k))
 	# def rotate(self, k, d, len, base=0):
 		# setattr(self, k, (getattr(self, k) + d - base) % len + base)
-	def get_acc_func(self, key, acc):
-		acc = acc if acc is not None else key.replace('s+','shift+').replace('c+','ctrl+').replace('a+','alt+') if key is not None else None
-		func = lambda:self.key_press(key) if key is not None else None
-		return {'accelerator':acc, 'command':func}
-	def get_attr(self, var_name):
+	def get_attr(self, name):
 		obj = self
-		for n in var_name.split('.'):
+		for n in name.split('.'):
 			obj = getattr(obj, n)
 		return obj
-	def add_menu(self, text):
-		m = tk.Menu(self.menu, tearoff=True)
-		self.menu_seq = 0
-		self.menu.add_cascade(label=text, menu=m)
-		return m
-	def add_menu_item(self, m, text, key=None, acc=None):
-		self.menu_seq += 1
-		m.add_command(label=text, **self.get_acc_func(key, acc))
-	def add_menu_separator(self, m):
-		self.menu_seq += 1
-		m.add_separator()
-	def add_menu_tick(self, m, text, var_name, key=None, acc=None):
-		self.menu_seq += 1
-		self.menu_vars[var_name] = tk.BooleanVar(value=self.get_attr(var_name))
-		m.add_checkbutton(label=text, variable=self.menu_vars[var_name], **self.get_acc_func(key, acc))
-	def add_param_display(self, m, param_name):
-		self.menu_seq += 1
-		self.menu_params.append(m._name + ':' + str(self.menu_seq) + ':' + param_name)
-		m.add_command(label='', state=tk.DISABLED) # background='navy', foreground='white')
-	def add_value_display(self, m, var_name, key=None, acc=None):
-		self.menu_seq += 1
-		self.menu_values[var_name] = m._name + ':' + str(self.menu_seq) + ':' + var_name
-		m.add_command(label='', **self.get_acc_func(key, acc)) # background='dark green', foreground='white'
-	def display_menu_value(self, var_name, text, value):
-		code = self.menu_values[var_name].split(':')
-		self.menu.children[code[0]].entryconfig(int(code[1]), label='{0} [{1}]'.format(text, value))
+	def update_menu_value(self, name, value, text=None):
+		info = self.menu_values[name]
+		self.menu.children[info[0]].entryconfig(info[1], label='{text} [{value}]'.format(text=text if text else info[2], value=value))
 	def update_menu(self):
-		for var_name in self.menu_vars:
-			self.menu_vars[var_name].set(self.get_attr(var_name))
-		for param in self.menu_params:
-			code = param.split(':')
-			value = '['+Board.fracs2st(self.world.params[code[2]])+']' if code[2]=='b' else self.world.params[code[2]]
-			self.menu.children[code[0]].entryconfig(int(code[1]), label='{0} = {1}'.format(code[2], value))
-		self.display_menu_value('kn', 'Kernal', ["Polynomial","Gaussian"][(self.world.params.get('kn') or self.automaton.kn) - 1])
-		self.display_menu_value('gn', 'Field', ["Polynomial","Gaussian"][(self.world.params.get('gn') or self.automaton.gn) - 1])
-		self.display_menu_value('clp', 'Clip', ["Hard","Soft"][self.automaton.clip_mode])
-		self.display_menu_value('stp', 'Step', ["Single","Multi"][self.automaton.is_multistep])
-		self.display_menu_value('inv', 'Invert', ["Normal","Inverted"][self.world.params['T']<0])
-		self.display_menu_value('clr', 'Colormap', ["Blue/red","Green/purple","Red/green","Black/white"][self.colormap_id])
-		self.display_menu_value('shw', 'Display', ["World","Potential","Field","Change","Kernel"][self.show_what])
-		self.display_menu_value('anm', '', self.world.long_name())
+		for name in self.menu_vars:
+			self.menu_vars[name].set(self.get_attr(name))
+		for (name, info) in self.menu_params.items():
+			value = '['+Board.fracs2st(self.world.params[name])+']' if name=='b' else self.world.params[name]
+			self.menu.children[info[0]].entryconfig(info[1], label='{text} ({param} = {value})'.format(text=info[2], param=name, value=value))
+		self.update_menu_value('kn', ["Polynomial","Exponential"][(self.world.params.get('kn') or self.automaton.kn) - 1])
+		self.update_menu_value('gn', ["Polynomial","Exponential"][(self.world.params.get('gn') or self.automaton.gn) - 1])
+		self.update_menu_value('clp', ["Hard","Soft"][self.automaton.clip_mode])
+		self.update_menu_value('stp', ["Single","Multi"][self.automaton.is_multistep])
+		self.update_menu_value('inv', ["Normal","Inverted"][self.world.params['T']<0])
+		self.update_menu_value('clr', ["Blue/red","Green/purple","Red/green","Black/white"][self.colormap_id])
+		self.update_menu_value('shw', ["World","Potential","Field","Change","Kernel"][self.show_what])
+		self.update_menu_value('anm', self.world.long_name(), text='#'+str(self.animal_id))
+
+	def get_acc_func(self, key, acc, animal_id=None):
+		acc = acc if acc else key.replace('s+','Shift+').replace('c+','Ctrl+').replace('a+','Slt+') if key else None
+		if animal_id:
+			func = lambda:self.load_animal_id(int(animal_id))
+		else:
+			func = lambda:self.key_press(key.lower()) if key else None
+		return {'accelerator':acc, 'command':func}
+	def create_submenu(self, items):
+		m = tk.Menu(self.menu, tearoff=True)
+		m.seq = 0
+		for i in items:
+			m.seq += 1
+			if i is None or i=='':
+				m.add_separator()
+			elif type(i) in [tuple, list]:
+				m.add_cascade(label=i[0], menu=self.create_submenu(i[1]))
+			else:
+				first, text, key, acc, *_ = i.split('|') + ['']*2
+				kind, name = first[:1], first[1:]
+				if first=='':
+					m.add_command(label=text, **self.get_acc_func(key, acc))
+				elif kind=='*':
+					self.menu_vars[name] = tk.BooleanVar(value=self.get_attr(name))
+					m.add_checkbutton(label=text, variable=self.menu_vars[name], **self.get_acc_func(key, acc))
+				elif kind=='@':
+					self.menu_values[name] = (m._name, m.seq, text)
+					m.add_command(label='', **self.get_acc_func(key, acc)) # background='dark green', foreground='white'
+				elif kind=='#':
+					self.menu_params[name] = (m._name, m.seq, text)
+					m.add_command(label='', state=tk.DISABLED) # background='navy', foreground='white')
+				elif kind=='&':
+					m.add_command(label=text, **self.get_acc_func(key, acc, animal_id=name))
+		return m
+	def get_animal_nested_list(self):
+		root = []
+		stack = [root]
+		id = 0
+		for data in self.animal_data:
+			code = data['code']
+			if code.startswith('>'):
+				next_level = int(code[1:])
+				d = len(stack) - next_level
+				for i in range(d):
+					stack.pop()
+				for i in range(max(-d, 0) + 1):
+					new_list = ('{name} {cname}'.format(**data), [])
+					stack[-1].append(new_list)
+					stack.append(new_list[1])
+			else:
+				stack[-1].append('&{id}|{name} {cname}|'.format(id=id, **data))
+			id += 1
+		return root
 
 	def create_menu(self):
 		self.menu_vars = {}
-		self.menu_params = []
+		self.menu_params = {}
 		self.menu_values = {}
-		self.menu = tk.Menu(self.win)
+		self.menu = tk.Menu(self.win, tearoff=True)
 		self.win.config(menu=self.menu)
 
-		m = self.add_menu('Main')
-		self.add_menu_tick(m, 'Calculate...', 'is_run', 'Return')
-		self.add_menu_item(m, 'Once', 'space', acc='Space')
-		self.add_menu_separator(m)
-		self.add_menu_tick(m, 'Auto place/paste...', 'is_auto_load', 'c+Z')
-		self.add_menu_tick(m, 'Layer mode...', 'is_layered', 'c+X')
-		self.add_menu_separator(m)
-		self.add_menu_item(m, 'Copy', 'c+C')
-		self.add_menu_item(m, 'Paste', 'c+V')
-		self.add_menu_item(m, 'Save', 'c+S')
-		self.add_menu_tick(m, 'Record...', 'recorder.is_recording', 'c+R')
-		self.add_menu_separator(m)
-		self.add_menu_item(m, 'Quit', 'Escape')
+		self.menu.add_cascade(label='Main', menu=self.create_submenu([
+			'*is_run|Start...|Return', '|Once|Space', None,
+			'@shw|Show|Tab', '@clr|Colors|QuoteLeft|`', None,
+			'|Save|c+S', '*recorder.is_recording|Record...|c+R', None,
+			'|Quit|Escape']))
 
-		m = self.add_menu('World')
-		self.add_menu_item(m, 'Clear', 'Delete')
-		self.add_menu_separator(m)
-		self.add_menu_item(m, 'Center', 'M')
-		self.add_menu_tick(m, 'Auto center...', 'is_auto_center', 'c+M')
-		self.add_menu_separator(m)
-		self.add_menu_item(m, '(Nudge)', 's+')
-		self.add_menu_item(m, 'Move up', 'Up')
-		self.add_menu_item(m, 'Move down', 'Down')
-		self.add_menu_item(m, 'Move left', 'Left')
-		self.add_menu_item(m, 'Move right', 'Right')
-		self.add_menu_item(m, 'Rotate clockwise', 'PageUp')
-		self.add_menu_item(m, 'Rotate anti-clockwise', 'PageDown')
-		self.add_menu_item(m, 'Flip vertically', 'Home')
-		self.add_menu_item(m, 'Flip horizontally', 'End')
-		self.add_menu_separator(m)
-		self.add_value_display(m, 'clr', 'equal', acc='=')
-		self.add_value_display(m, 'shw', 'Tab')
+		self.menu.add_cascade(label='View', menu=self.create_submenu([
+			'|Center|M', '*is_auto_center|Auto center...|c+M', None,
+			'|(Small adjust)||Shift+Up',
+			'|Move up|Up', '|Move down|Down', '|Move left|Left', '|Move right|Right',
+			'|Rotate clockwise|PageUp', '|Rotate anti-clockwise|PageDown',
+			'|Flip vertically|Home', '|Flip horizontally|End',
+			'|Mirror|Equal|=', '|Mirror flip|Plus|+']))
 
-		m = self.add_menu('Animal')
-		self.add_value_display(m, 'anm')
-		self.add_menu_item(m, 'Place at center', 'Z')
-		self.add_menu_item(m, 'Place at random', 'X')
-		self.add_menu_item(m, 'Previous animal', 'C')
-		self.add_menu_item(m, 'Next animal', 'V')
-		self.add_menu_item(m, 'Previous 10', 's+C')
-		self.add_menu_item(m, 'Next 10', 's+V')
-		self.add_menu_separator(m)
-		for (key,code) in self.ANIMAL_KEY_LIST.items():
+		items2 = []
+		for (key, code) in self.ANIMAL_KEY_LIST.items():
 			id = self.get_animal_id(code)
-			if id is not None:
-				self.add_menu_item(m, self.animal_data[id]['name'], key)
+			if id: items2.append('|{name} {cname}|{key}'.format(**self.animal_data[id], key=key))
+		self.menu.add_cascade(label='Animal', menu=self.create_submenu([
+			'@anm||', '|Place at center|Z', '|Place at random|X',
+			'|Previous animal|Q', '|Next animal|A', '|Previous 10|s+Q', '|Next 10|s+A', None,
+			'|[Shortcuts]|'] + items2 + [None,
+			('Full list', self.get_animal_nested_list())]))
 
-		m = self.add_menu('Params')
-		self.add_param_display(m, 'm')
-		self.add_menu_item(m, 'm + 0.01', 'Q')
-		self.add_menu_item(m, 'm - 0.01', 'A')
-		self.add_menu_item(m, 'm + 0.001', 's+Q')
-		self.add_menu_item(m, 'm - 0.001', 's+A')
-		self.add_param_display(m, 's')
-		self.add_menu_item(m, 's + 0.001', 'W')
-		self.add_menu_item(m, 's - 0.001', 'S')
-		self.add_menu_item(m, 's + 0.0001', 's+W')
-		self.add_menu_item(m, 's - 0.0001', 's+S')
-		self.add_param_display(m, 'R')
-		self.add_menu_item(m, 'Zoom in', 'R')
-		self.add_menu_item(m, 'Zoom out', 'F')
-		self.add_menu_item(m, 'R + 1', 's+R')
-		self.add_menu_item(m, 'R - 1', 's+F')
-		self.add_param_display(m, 'T')
-		self.add_menu_item(m, 'Double speed', 'T')
-		self.add_menu_item(m, 'Half speed', 'G')
-		self.add_menu_item(m, 'T + 1', 's+T')
-		self.add_menu_item(m, 'T - 1', 's+G')
-		self.add_param_display(m, 'b')
-		self.add_menu_separator(m)
-		self.add_value_display(m, 'kn', 'c+Y')
-		self.add_value_display(m, 'gn', 'c+U')
-		self.add_value_display(m, 'clp', 'c+I')
-		self.add_value_display(m, 'stp', 'c+O')
-		self.add_value_display(m, 'inv', 'c+P')
+		self.menu.add_cascade(label='World', menu=self.create_submenu([
+			'|Copy|c+C', '|Paste|c+V', None,
+			'|Clear|Backspace', '|Random|C', '|Random (last seed)|V', None,
+			'|[Options]|', '*is_auto_load|Auto put (place/paste/random)...|c+Z', 
+			'*is_layered|Layer mode...|c+X']))
+
+		items2 = ['|Fewer peaks|BracketLeft|[', '|More peaks|BracketRight|]', None]
+		for i in range(5):
+			items2.append('|Taller peak {n}|{key}'.format(n=i+1, key='YUIOP'[i]))
+			items2.append('|Shorter peak {n}|{key}'.format(n=i+1, key='s+'+'YUIOP'[i]))
+
+		self.menu.add_cascade(label='Params', menu=self.create_submenu([
+			'|(Small adjust)||Shift+W', None,
+			'#m|Field center', '|Higher (m + 0.01)|W', '|Lower (m - 0.01)|S',
+			'#s|Field width', '|Wider (s + 0.001)|E', '|Narrower (s - 0.001)|D', None,
+			'#R|Space', '|Bigger (R + 10)|R', '|Smaller (R + 10)|F',
+			'#T|Time', '|Faster (T + 10)|T', '|Slower (T - 10)|G', None,
+			'#b|Kernel peaks', ('Change', items2), None,
+			'|[Options]|' '|Random params|Backslash|\\', 
+			'@kn|Kernel|c+Y', '@gn|Field|c+U',
+			'@clp|Clip|c+I', '@stp|Step|c+O', '@inv|Invert|c+P']))
 
 	def update_info(self):
-		if self.status != "":
+		if self.status:
 			print(self.status)
-		if self.excess_key is not None:
+		if self.excess_key:
 			print(self.excess_key)
 
 if __name__ == '__main__':
