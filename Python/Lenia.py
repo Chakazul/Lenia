@@ -1,12 +1,4 @@
-'''
-pip install numpy
-pip install scipy
-pip install opencv-python
-pip install pillow
-pip install pyopencl
-pip install reikna
-pip install ffmpeg-python
-'''
+''' pip / pip3 install numpy, scipy, opencv-python, pillow, pyopencl, reikna, ffmpeg-python '''
 import numpy as np
 import scipy.ndimage as snd
 import reikna.fft, reikna.cluda
@@ -23,8 +15,7 @@ except ImportError:
 import warnings
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')
 
-SIZEX, SIZEY = 1 << 9, 1 << 8    # 1<<9=512
-# SIZEX, SIZEY = 1024, 512
+SIZEX, SIZEY = 1 << 10, 1 << 9    # 1<<9=512
 # SIZEX, SIZEY = 1280, 720    # 720p HD
 # SIZEX, SIZEY = 1920, 1080    # 1080p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
@@ -562,10 +553,10 @@ class Lenia:
 		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
 		elif k in ['quoteleft', 'asciitilde', 's+asciitilde']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormap)
 		elif k in ['tab', 's+tab']: self.show_what = (self.show_what + inc_or_dec) % 5
-		elif k in ['w', 's+w']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load()
-		elif k in ['s', 's+s']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load()
-		elif k in ['e', 's+e']: self.world.params['s'] += inc_10_or_1 * 0.0001; self.check_auto_load()
-		elif k in ['d', 's+d']: self.world.params['s'] -= inc_10_or_1 * 0.0001; self.check_auto_load()
+		elif k in ['q', 's+q']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load()
+		elif k in ['a', 's+a']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load()
+		elif k in ['w', 's+w']: self.world.params['s'] += inc_10_or_1 * 0.0001; self.check_auto_load()
+		elif k in ['s', 's+s']: self.world.params['s'] -= inc_10_or_1 * 0.0001; self.check_auto_load()
 		elif k in ['t', 's+t']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] // double_or_not - inc_or_not))
 		elif k in ['g', 's+g']: self.world.params['T'] = max(5, min(10000, self.world.params['T'] *  double_or_not + inc_or_not))
 		elif k in ['r', 's+r']: self.set_zoom(+inc_mul_or_not, +inc_or_not); self.transform_world()
@@ -588,12 +579,12 @@ class Lenia:
 		elif k in ['m']: self.center_world()
 		elif k in ['c+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
 		elif k in ['backspace', 'delete']: self.clear_world()
-		elif k in ['q', 's+q']: self.load_animal_id(self.animal_id - inc_1_or_10)
-		elif k in ['a', 's+a']: self.load_animal_id(self.animal_id + inc_1_or_10)
+		elif k in ['c', 's+c']: self.load_animal_id(self.animal_id - inc_1_or_10)
+		elif k in ['v', 's+v']: self.load_animal_id(self.animal_id + inc_1_or_10)
 		elif k in ['z']: self.load_animal_id(self.animal_id)
 		elif k in ['x']: self.load_part(self.fore, is_random=True, is_replace=False)
-		elif k in ['c']: pass # random
-		elif k in ['v']: pass # random last seed
+		elif k in ['b']: pass # random
+		elif k in ['n']: pass # random last seed
 		elif k in ['c+z']: self.is_auto_load = not self.is_auto_load
 		elif k in ['c+x']: self.is_layered = not self.is_layered
 		elif k in ['c+c', 's+c+c', 'c+s', 's+c+s']:
@@ -741,13 +732,13 @@ class Lenia:
 			if id: items2.append('|{name} {cname}|{key}'.format(**self.animal_data[id], key=key))
 		self.menu.add_cascade(label='Animal', menu=self.create_submenu(self.menu, [
 			'@anm||', '|Place at center|Z', '|Place at random|X',
-			'|Previous animal|Q', '|Next animal|A', '|Previous 10|s+Q', '|Next 10|s+A', None,
+			'|Previous animal|C', '|Next animal|V', '|Previous 10|s+Q', '|Next 10|s+A', None,
 			'|[Shortcuts]|'] + items2 + [None,
 			('Full list', self.get_animal_nested_list())]))
 
 		self.menu.add_cascade(label='World', menu=self.create_submenu(self.menu, [
 			'|Copy|c+C', '|Paste|c+V', None,
-			'|Clear|Backspace', '|Random|C', '|Random (last seed)|V', None,
+			'|Clear|Backspace', '|Random|B', '|Random (last seed)|N', None,
 			'|[Options]|', '*is_auto_load|Auto put (place/paste/random)...|c+Z', 
 			'*is_layered|Layer mode...|c+X']))
 
@@ -758,8 +749,8 @@ class Lenia:
 
 		self.menu.add_cascade(label='Params', menu=self.create_submenu(self.menu, [
 			'|(Small adjust)||Shift+W', None,
-			'#m|Field center', '|Higher (m + 0.01)|W', '|Lower (m - 0.01)|S',
-			'#s|Field width', '|Wider (s + 0.001)|E', '|Narrower (s - 0.001)|D', None,
+			'#m|Field center', '|Higher (m + 0.01)|Q', '|Lower (m - 0.01)|A',
+			'#s|Field width', '|Wider (s + 0.001)|W', '|Narrower (s - 0.001)|S', None,
 			'#R|Space', '|Bigger (R + 10)|R', '|Smaller (R + 10)|F',
 			'#T|Time', '|Faster (T + 10)|T', '|Slower (T - 10)|G', None,
 			'#b|Kernel peaks', ('Change', items2), None,
