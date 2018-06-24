@@ -1,24 +1,32 @@
-''''
-pip3 install numpy
-pip3 install scipy
-pip3 install opencv-python
-pip3 install pillow
+'''
+pip install numpy
+pip install scipy
+pip install opencv-python
+pip install pillow
+pip install pyopencl
+pip install reikna
+pip install ffmpeg-python
 '''
 import numpy as np
 import scipy.ndimage as snd
+import reikna.fft, reikna.cluda
 from fractions import Fraction
 import copy, re, itertools, json
 import datetime, os, sys
 import cv2
+import ffmpeg
 from PIL import Image, ImageTk
 try:
 	import tkinter as tk
 except ImportError:
 	import Tkinter as tk
+import warnings
+warnings.filterwarnings('ignore', '.*output shape of zoom.*')
 
-SIZEX, SIZEY = 1 << 9, 1 << 8
-# SIZEX, SIZEY = 1920, 1080  # 1080p HD
-# SIZEX, SIZEY = 1280, 720  # 720p HD
+SIZEX, SIZEY = 1 << 9, 1 << 8    # 1<<9=512
+# SIZEX, SIZEY = 1024, 512
+# SIZEX, SIZEY = 1280, 720    # 720p HD
+# SIZEX, SIZEY = 1920, 1080    # 1080p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
 DEF_ZOOM = 3
 EPSILON = 1e-10
@@ -76,7 +84,8 @@ class Board:
 	
 	@staticmethod
 	def arr2rle(A, is_shorten=True):
-		''' http://www.conwaylife.com/w/index.php?title=Run_Length_Encoded
+		''' RLE = Run-length encoding
+			http://www.conwaylife.com/w/index.php?title=Run_Length_Encoded
 			http://golly.sourceforge.net/Help/formats.html#rle
 			https://www.rosettacode.org/wiki/Run-length_encoding#Python
 			A=[0 0 1] <-> V=[0 0 255] <-> code=[. . yO] <-> rle=[(2 .)(1 yO)] <-> st='2.yO'
@@ -119,7 +128,8 @@ class Board:
 		# assert self.params['R'] == part.params['R']
 		h1, w1 = self.cells.shape
 		h2, w2 = part.cells.shape
-		h, w = min(part.cells.shape, self.cells.shape)
+		h = min(h1, h2)
+		w = min(w1, w2)
 		i1 = (w1 - w)//2 + shift[1]
 		j1 = (h1 - h)//2 + shift[0]
 		i2 = (w2 - w)//2
@@ -175,7 +185,7 @@ class Recorder:
 			self.finish_record()
 
 	def start_record(self):
-		''' https://github.com/cisco/openh264/ '''
+		''' H264: https://github.com/cisco/openh264/ '''
 		self.is_recording = True
 		self.status = "> start " + ("saving frames" if self.is_save_frames else "recording video") + "..."
 		self.record_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
@@ -226,13 +236,15 @@ class Automaton:
 		self.field = np.zeros(world.cells.shape)
 		self.field_old = None
 		self.change = np.zeros(world.cells.shape)
-		self.calc_kernel()
 		self.gen = 0
 		self.time = 0
 		self.is_multistep = False
 		self.clip_mode = 0
 		self.kn = 1
 		self.gn = 1
+		self.is_gpu = True
+		self.compile_gpu(self.world.cells)
+		self.calc_kernel()
 
 	def kernel_shell(self, r):
 		k = len(self.world.params['b'])
@@ -244,7 +256,7 @@ class Automaton:
 
 	@staticmethod
 	def soft_max(x, m, k):
-		''' https://www.johndcook.com/blog/2010/01/13/soft-maximum/ '''
+		''' Soft maximum: https://www.johndcook.com/blog/2010/01/13/soft-maximum/ '''
 		return np.log(np.exp(k*x) + np.exp(k*m)) / k
 
 	@staticmethod
@@ -255,11 +267,30 @@ class Automaton:
 		return np.log( 1/(a+b)+c ) / -k
 		# return Automaton.soft_max(Automaton.soft_max(x, min, k), max, -k)
 
+	def compile_gpu(self, A):
+		''' Reikna: http://reikna.publicfields.net/en/latest/api/computations.html '''
+		self.gpu_api = reikna.cluda.any_api()
+		self.gpu_thr = self.gpu_api.Thread.create()
+		self.gpu_fft = reikna.fft.FFT(A.astype(np.complex64)).compile(self.gpu_thr)
+		self.gpu_fftshift = reikna.fft.FFTShift(A.astype(np.float32)).compile(self.gpu_thr)
+
+	def run_gpu(self, A, cpu_func, gpu_func, dtype, **kwargs):
+		if self.is_gpu:
+			op_dev = self.gpu_thr.to_device(A.astype(dtype))
+			gpu_func(op_dev, op_dev, **kwargs)
+			return op_dev.get()
+		else:
+			return cpu_func(A)
+			# return np.roll(potential_shifted, (MIDY, MIDX), (0, 1))
+
+	def fft(self, A): return self.run_gpu(A, np.fft.fft2, self.gpu_fft, np.complex64)
+	def ifft(self, A): return self.run_gpu(A, np.fft.ifft2, self.gpu_fft, np.complex64, inverse=True)
+	def fftshift(self, A): return self.run_gpu(A, np.fft.fftshift, self.gpu_fftshift, np.float32)
+
 	def calc_once(self, is_update=True):
 		A = self.world.cells
-		world_FFT = np.fft.fft2(A)
-		potential_shifted = np.real(np.fft.ifft2(self.kernel_FFT * world_FFT))
-		self.potential = np.roll(potential_shifted, (MIDY, MIDX), (0, 1))
+		world_FFT = self.fft(A)
+		self.potential = self.fftshift(np.real(self.ifft(self.kernel_FFT * world_FFT)))
 		gfunc = Automaton.field_func[(self.world.params.get('gn') or self.gn) - 1]
 		self.field = gfunc(self.potential, self.world.params['m'], self.world.params['s'])
 		dt = 1 / self.world.params['T']
@@ -279,6 +310,8 @@ class Automaton:
 			self.world.cells = A_new
 		self.gen += 1
 		self.time += dt
+		if self.is_gpu:
+			self.gpu_thr.synchronize()
 
 	def calc_kernel(self):
 		I, J = np.meshgrid(np.arange(SIZEX), np.arange(SIZEY))
@@ -289,7 +322,7 @@ class Automaton:
 		self.kernel = self.kernel_shell(self.D)
 		self.kernel_sum = np.sum(self.kernel)
 		kernel_norm = self.kernel / self.kernel_sum
-		self.kernel_FFT = np.fft.fft2(kernel_norm)
+		self.kernel_FFT = self.fft(kernel_norm)
 		self.kernel_updated = False
 
 	def reset(self):
@@ -388,7 +421,6 @@ class Lenia:
 			self.zoom = max(1, self.zoom + zoom_add)
 			self.tx['R'] = self.tx['R'] // zoom_old * self.zoom
 		self.tx['R'] += R_add
-		print(self.fore.params['R'])
 
 	def transform_world(self):
 		if self.is_layered:
@@ -453,7 +485,7 @@ class Lenia:
 	def show_world(self):
 		change_range = 1.4 if self.automaton.clip_mode>=1 else 1
 		if self.show_what==0: self.show_panel(self.panel1, self.world.cells, 0, 1)
-		elif self.show_what==1: self.show_panel(self.panel1, self.automaton.potential, 0, 1.9*self.world.params['m'])
+		elif self.show_what==1: self.show_panel(self.panel1, self.automaton.potential, 0, 2*self.world.params['m'])
 		elif self.show_what==2: self.show_panel(self.panel1, self.automaton.field, -1, 1)
 		elif self.show_what==3: self.show_panel(self.panel1, self.automaton.change, -change_range, change_range)
 		elif self.show_what==4: self.show_panel(self.panel1, self.automaton.kernel, 0, 1)
@@ -465,6 +497,8 @@ class Lenia:
 	def show_panel(self, panel, A, vmin=0, vmax=1):
 		buffer = np.uint8((A-vmin) / (vmax-vmin) * 255).copy(order='C')
 		img = Image.frombuffer('P', (SIZEX,SIZEY), buffer, 'raw', 'P', 0, 1)
+		# if vmin==-vmax:
+		# 	colormap[127*3:128*3] = [0x7f]*3
 		img.putpalette(self.colormap[self.colormap_id])
 		if self.recorder.is_recording:
 			self.recorder.record_frame(img)
@@ -498,7 +532,7 @@ class Lenia:
 			self.show_world()
 
 	def key_press_event(self, event):
-		''' https://www.tcl.tk/man/tcl8.6/TkCmd/keysyms.htm '''
+		''' TKInter keys: https://www.tcl.tk/man/tcl8.6/TkCmd/keysyms.htm '''
 		# Win: shift_l/r(0x1) caps_lock(0x2) control_l/r(0x4) alt_l/r(0x20000) win/app/alt_r/control_r(0x40000)
 		# Mac: shift_l(0x1) caps_lock(0x2) control_l(0x4) meta_l(0x8,command) alt_l(0x10) super_l(0x40,fn)
 		# print('keysym[{0.keysym}] char[{0.char}] keycode[{0.keycode}] state[{1}]'.format(event, hex(event.state))); return
@@ -526,7 +560,7 @@ class Lenia:
 		if k in ['escape']: self.close()
 		elif k in ['enter', 'return']: self.is_run = not self.is_run
 		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
-		elif k in ['quoteleft', 's+asciitilde']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormap)
+		elif k in ['quoteleft', 'asciitilde', 's+asciitilde']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormap)
 		elif k in ['tab', 's+tab']: self.show_what = (self.show_what + inc_or_dec) % 5
 		elif k in ['w', 's+w']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load()
 		elif k in ['s', 's+s']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load()
@@ -586,7 +620,9 @@ class Lenia:
 			data = json.loads(self.clipboard_st)
 			self.load_part(Board.from_data(data), zoom=1)
 		elif k in ['c+r', 's+c+r']: self.recorder.toggle_recording(is_save_frames='s+' in k)
-		elif k in [str(i) for i in range(10)] + ['S'+str(i) for i in range(10)]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k))
+		elif k in ['c+g']: self.automaton.is_gpu = not self.automaton.is_gpu
+		elif k in [str(i) for i in range(10)]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k))
+		elif k in ['slash']: self.menu.children[self.menu_params['m'][0]].post(self.win.winfo_rootx(), self.win.winfo_rooty())
 		elif k.endswith('_l') or k.endswith('_r'): is_ignore = True
 		else: self.excess_key = k
 
@@ -630,16 +666,17 @@ class Lenia:
 			func = lambda:self.load_animal_id(int(animal_id))
 		else:
 			func = lambda:self.key_press(key.lower()) if key else None
-		return {'accelerator':acc, 'command':func}
-	def create_submenu(self, items):
-		m = tk.Menu(self.menu, tearoff=True)
+		state = 'normal' if key else tk.DISABLED
+		return {'accelerator':acc, 'command':func, 'state':state}
+	def create_submenu(self, parent, items):
+		m = tk.Menu(parent, tearoff=True)
 		m.seq = 0
 		for i in items:
 			m.seq += 1
 			if i is None or i=='':
 				m.add_separator()
 			elif type(i) in [tuple, list]:
-				m.add_cascade(label=i[0], menu=self.create_submenu(i[1]))
+				m.add_cascade(label=i[0], menu=self.create_submenu(m, i[1]))
 			else:
 				first, text, key, acc, *_ = i.split('|') + ['']*2
 				kind, name = first[:1], first[1:]
@@ -684,13 +721,13 @@ class Lenia:
 		self.menu = tk.Menu(self.win, tearoff=True)
 		self.win.config(menu=self.menu)
 
-		self.menu.add_cascade(label='Main', menu=self.create_submenu([
-			'*is_run|Start...|Return', '|Once|Space', None,
+		self.menu.add_cascade(label='Main', menu=self.create_submenu(self.menu, [
+			'*is_run|Start...|Return', '|Once|Space', '*automaton.is_gpu|Use GPU|c+G', None,
 			'@shw|Show|Tab', '@clr|Colors|QuoteLeft|`', None,
-			'|Save|c+S', '*recorder.is_recording|Record...|c+R', None,
+			'|Save data|c+S', '*recorder.is_recording|Record video...|c+R', None,
 			'|Quit|Escape']))
 
-		self.menu.add_cascade(label='View', menu=self.create_submenu([
+		self.menu.add_cascade(label='View', menu=self.create_submenu(self.menu, [
 			'|Center|M', '*is_auto_center|Auto center...|c+M', None,
 			'|(Small adjust)||Shift+Up',
 			'|Move up|Up', '|Move down|Down', '|Move left|Left', '|Move right|Right',
@@ -702,13 +739,13 @@ class Lenia:
 		for (key, code) in self.ANIMAL_KEY_LIST.items():
 			id = self.get_animal_id(code)
 			if id: items2.append('|{name} {cname}|{key}'.format(**self.animal_data[id], key=key))
-		self.menu.add_cascade(label='Animal', menu=self.create_submenu([
+		self.menu.add_cascade(label='Animal', menu=self.create_submenu(self.menu, [
 			'@anm||', '|Place at center|Z', '|Place at random|X',
 			'|Previous animal|Q', '|Next animal|A', '|Previous 10|s+Q', '|Next 10|s+A', None,
 			'|[Shortcuts]|'] + items2 + [None,
 			('Full list', self.get_animal_nested_list())]))
 
-		self.menu.add_cascade(label='World', menu=self.create_submenu([
+		self.menu.add_cascade(label='World', menu=self.create_submenu(self.menu, [
 			'|Copy|c+C', '|Paste|c+V', None,
 			'|Clear|Backspace', '|Random|C', '|Random (last seed)|V', None,
 			'|[Options]|', '*is_auto_load|Auto put (place/paste/random)...|c+Z', 
@@ -719,7 +756,7 @@ class Lenia:
 			items2.append('|Taller peak {n}|{key}'.format(n=i+1, key='YUIOP'[i]))
 			items2.append('|Shorter peak {n}|{key}'.format(n=i+1, key='s+'+'YUIOP'[i]))
 
-		self.menu.add_cascade(label='Params', menu=self.create_submenu([
+		self.menu.add_cascade(label='Params', menu=self.create_submenu(self.menu, [
 			'|(Small adjust)||Shift+W', None,
 			'#m|Field center', '|Higher (m + 0.01)|W', '|Lower (m - 0.01)|S',
 			'#s|Field width', '|Wider (s + 0.001)|E', '|Narrower (s - 0.001)|D', None,
@@ -743,6 +780,3 @@ if __name__ == '__main__':
 	lenia.update_menu()
 	lenia.loop()
 
-# GPU FFT
-# https://pythonhosted.org/pyfft/
-# http://arrayfire.org/docs/group__signal__func__fft2.htm
