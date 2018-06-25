@@ -1,3 +1,4 @@
+![icon](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 # Lenia
 Lenia is a 2D [cellular automata](https://en.wikipedia.org/wiki/Cellular_automaton) with continuous space, time and states. Many interesting life forms can be found.
 
