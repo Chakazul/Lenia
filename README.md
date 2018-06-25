@@ -2,7 +2,7 @@
 # Lenia
 Lenia is a 2D [cellular automata](https://en.wikipedia.org/wiki/Cellular_automaton) with continuous space, time and states. Many interesting life forms can be found.
 
-There are various versions available. Matlab and JavaScript versions are real-time, interactive, and equipped with statistics tools. Jupyter and R versions are non-interactive and just for demonstration purposes.
+There are various versions available. Python, Matlab and JavaScript versions are real-time, interactive, and equipped with statistics tools. Jupyter and R versions are non-interactive and just for demonstration purposes.
 
 ![orbium](https://github.com/Chakazul/Lenia/blob/master/Screencap/orbium-ezgif.gif)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 ![gyrorbium](https://github.com/Chakazul/Lenia/blob/master/Screencap/gyrorbium-ezgif.gif)
