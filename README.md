@@ -7,8 +7,13 @@ There are various versions available. Matlab and JavaScript versions are real-ti
 ![orbium](https://github.com/Chakazul/Lenia/blob/master/Screencap/orbium-ezgif.gif)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 ![gyrorbium](https://github.com/Chakazul/Lenia/blob/master/Screencap/gyrorbium-ezgif.gif)
 
+## Python Version
+Fastest version, real-time and interactive, minimalist layout.
+Now with GPU support!
+![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python.png)
+
 ## Matlab Version
-Fastest version, real-time and interactive, great tools for statistical analysis.
+Fast version, real-time and interactive, great tools for statistical analysis.
 
 (you need a purchased copy of Matlab to run this version)
 ![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Matlab.png)
