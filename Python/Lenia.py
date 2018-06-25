@@ -1,11 +1,10 @@
-''' pip / pip3 install numpy, scipy, opencv-python, pillow, pyopencl, reikna, ffmpeg-python '''
+''' pip / pip3 install numpy, scipy, pillow, pyopencl, reikna '''
 import numpy as np
 import scipy.ndimage as snd
 import reikna.fft, reikna.cluda
 from fractions import Fraction
 import copy, re, itertools, json
-import datetime, os, sys
-import cv2
+import datetime, os, sys, subprocess
 from PIL import Image, ImageTk
 try:
 	import tkinter as tk
@@ -14,10 +13,11 @@ except ImportError:
 import warnings
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')  # suppress warning from snd.zoom()
 
-SIZEX, SIZEY = 1 << 9, 1 << 8    # 1<<9=512
+PIXEL_2 = 0
+PIXEL = 1 << PIXEL_2
+SIZEX, SIZEY = 1 << (10-PIXEL_2), 1 << (9-PIXEL_2)    # 1<<9=512
 # SIZEX, SIZEY = 1280, 720    # 720p HD
 # SIZEX, SIZEY = 1920, 1080    # 1080p HD
-PIXEL = 1
 # SIZEX, SIZEY = 1 << 5, 1 << 5; PIXEL = 1<<4    # 1<<9=512
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
 DEF_R = min(SIZEX, SIZEY) // 4 //5*5
@@ -27,7 +27,8 @@ ROUND = 10
 RECORD_ROOT = 'record'
 FRAME_EXT = '.png'
 VIDEO_EXT = '.mp4'
-VIDEO_CODEC = 'mp4v'  # .avi *'DIVX' / .mp4 *'mp4v' *'avc1'
+# VIDEO_CODEC = 'mp4v'  # .avi *'DIVX' / .mp4 *'mp4v' *'avc1'
+status = ""
 
 class Board:
 	def __init__(self, size=[0,0]):
@@ -164,7 +165,8 @@ class Board:
 		return self
 
 class Recorder:
-	def __init__(self):
+	def __init__(self, world):
+		self.world = world
 		self.is_recording = False
 		self.is_save_frames = False
 		self.record_id = None
@@ -178,39 +180,61 @@ class Recorder:
 			self.finish_record()
 
 	def start_record(self):
-		''' H264: https://github.com/cisco/openh264/ '''
+		''' https://trac.ffmpeg.org/wiki/Encode/H.264
+		    https://trac.ffmpeg.org/wiki/Slideshow '''
+		global status
 		self.is_recording = True
-		self.status = "> start " + ("saving frames" if self.is_save_frames else "recording video") + "..."
+		status = "> start " + ("saving frames" if self.is_save_frames else "recording video") + "..."
 		self.record_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 		self.record_seq = 1
 		if self.is_save_frames:
 			self.img_dir = os.path.join(RECORD_ROOT, self.record_id)
 			if not os.path.exists(self.img_dir):
 				os.makedirs(self.img_dir)
-		self.video_path = os.path.join(RECORD_ROOT, '{}'.format(self.record_id) + VIDEO_EXT)
-		codec = cv2.VideoWriter_fourcc(*VIDEO_CODEC)
-		self.video = cv2.VideoWriter(self.video_path, codec, 24, (SIZEX*PIXEL,SIZEY*PIXEL))
+		self.video_path = os.path.join(RECORD_ROOT, '{}-{}'.format(self.world.names[0].split('(')[0], self.record_id) + VIDEO_EXT)
+		# ffmpeg -y -r 25 -i %03d.png -c:v libx264 -pix_fmt yuv420p -crf 18 ../b.mp4
+		ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
+			'-loglevel', 'warning',
+			'-y',  # overwrite
+			'-f', 'rawvideo',
+			'-vcodec', 'rawvideo',
+			'-pix_fmt', 'rgb24',
+			'-s', '{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL),  # image size
+			'-r', '25',  # fps
+			'-i', '-',  # input from pipe
+			'-an',  # no audio
+			'-vcodec', 'libx264',  # video codec = H.264
+			'-pix_fmt', 'yuv420p',
+			'-crf', '17',  # constant rate factor, 0=lossless, 17-18=visually lossless
+			self.video_path]
+		self.video = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)    # stderr=subprocess.PIPE
+		# codec = cv2.VideoWriter_fourcc(*VIDEO_CODEC)
+		# self.video = cv2.VideoWriter(self.video_path, codec, 24, (SIZEX*PIXEL,SIZEY*PIXEL))
 
 	def record_frame(self, img):
 		if self.is_save_frames:
 			img_path = os.path.join(RECORD_ROOT, self.record_id, '{:03d}'.format(self.record_seq) + FRAME_EXT)
 			img.save(img_path)
-		else:
-			img_rgb = np.array(img.convert('RGB'))
-			img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2RGB)
-			self.video.write(img_bgr)
+		img_rgb = img.convert('RGB').tobytes()
+		# img_rgb = np.array(img.convert('RGB'))
+		# img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2RGB)
+		self.video.stdin.write(img_rgb)
 		self.record_seq += 1
 
 	def finish_record(self):
+		global status
 		status = []
 		if self.is_save_frames:
-			for img_name in sorted(os.listdir(self.img_dir)):
-				if img_name.endswith(FRAME_EXT):
-					self.video.write(cv2.imread(os.path.join(self.img_dir, img_name)))
+			# for img_name in sorted(os.listdir(self.img_dir)):
+			# 	if img_name.endswith(FRAME_EXT):
+			# 		self.video.stdin.write(cv2.imread(os.path.join(self.img_dir, img_name)))
 			status.append("> frames saved to '" + self.img_dir + "/*" + FRAME_EXT + "'")
-		self.video.release()
+		self.video.stdin.close()
+		# self.video.wait()
+		# if self.video.returncode!=0:
+		# 	print(self.video.returncode)
 		status.append("> video  saved to '" + self.video_path + "'")
-		self.status = "\n".join(status)
+		status = "\n".join(status)
 		self.is_recording = False
 
 class Automaton:
@@ -350,7 +374,6 @@ class Lenia:
 			self.create_colormap(256, np.array([[0,3,4,5,8],[0,3,4,5,8],[0,3,4,5,8]]))] #B/W
 		self.colormap_id = 0
 		self.set_colormap()
-		self.status = None
 		self.excess_key = None
 		self.update = None
 		self.clear_job = None
@@ -359,7 +382,7 @@ class Lenia:
 		self.read_animals()
 		self.world = Board((SIZEY, SIZEX))
 		self.automaton = Automaton(self.world)
-		self.recorder = Recorder()
+		self.recorder = Recorder(self.world)
 		self.clear_transform()
 		self.create_window()
 		self.create_menu()
@@ -546,9 +569,8 @@ class Lenia:
 		key = event.keysym
 		state = event.state
 		s = 's+' if state & 0x1 or (key.isalpha() and len(key)==1 and key.isupper()) else ''
-		c = 'c+' if state & 0x4 else ''  # Win/Mac: Control
-		# m += 'm+' if state & 0x8 else ''  # Mac: Meta/Command
-		a = 'a+' if state & 0x20000 else ''  # Win: Alt
+		c = 'c+' if state & 0x8 or state & 0x4 else ''
+		a = 'a+' if state & 0x20000 else ''
 		key = key.lower()
 		if key in self.SHIFT_KEYS:
 			key = self.SHIFT_KEYS[key]
@@ -559,22 +581,25 @@ class Lenia:
 		's+1':'3G:4', 's+2':'3GG', 's+3':'K5(4,1)', 's+4':'K7(4,3)', 's+5':'K9(5,4)', 's+6':'3A5', 's+7':'4A6', 's+8':'2D10', 's+9':'4F12', 's+0':'', \
 		'c+1':'4Q(5,5,5,5):3', 'c+2':'2P7:2', 'c+3':'3GA', 'c+4':'K4(2,2):3', 'c+5':'K4(2,2):5', 'c+6':'3R4(3,3,2):4', 'c+7':'3F6', 'c+8':'4F7', 'c+9':'', 'c+0':''}
 	def key_press(self, k):
+		global status
 		inc_or_dec = 1 if 's+' not in k else -1
-		inc_10_or_1 = 10 if 's+' not in k else 1
+		inc_10_or_1 = 0 if 'c+' in k else (10 if 's+' not in k else 1)
+		inc_big_or_not = 1 if 'c+' in k else 0
 		inc_1_or_10 = 1 if 's+' not in k else 10
 		inc_mul_or_not = 1 if 's+' not in k else 0
 		double_or_not = 2 if 's+' not in k else 1
 		inc_or_not = 0 if 's+' not in k else 1
 
 		is_ignore = False
-		self.status = None
+		status = None
 		self.excess_key = None
 		self.update = None
 		if k in ['escape']: self.close()
 		elif k in ['enter', 'return']: self.is_run = not self.is_run
 		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
 		elif k in ['quoteleft', 's+quoteleft']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormaps); self.set_colormap()
-		elif k in ['tab', 's+tab']: self.show_what = (self.show_what + inc_or_dec) % 6
+		elif k in ['tab', 's+tab']: self.show_what = (self.show_what + inc_or_dec) % 5
+		elif k in ['c+tab']: self.show_what = 0 if self.show_what == 5 else 5
 		elif k in ['q', 's+q']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load(); self.update = 'param'
 		elif k in ['a', 's+a']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load(); self.update = 'param'
 		elif k in ['w', 's+w']: self.world.params['s'] += inc_10_or_1 * 0.0001; self.check_auto_load(); self.update = 'param'
@@ -590,15 +615,15 @@ class Lenia:
 		elif k in ['c+i', 's+c+i']: self.automaton.clip_mode = (self.automaton.clip_mode + inc_or_dec) % 2; self.value_min = 0 if self.automaton.clip_mode==0 else 0.05; self.update = 'clp'
 		elif k in ['c+o']: self.automaton.is_multistep = not self.automaton.is_multistep; self.update = 'stp'
 		elif k in ['c+p']: self.world.params['T'] *= -1; self.world.params['m'] = 1 - self.world.params['m']; self.world.cells = 1 - self.world.cells; self.update = 'inv'
-		elif k in ['down',  's+down']:  self.tx['shift'][0] += inc_10_or_1; self.transform_world()
-		elif k in ['up',    's+up']:    self.tx['shift'][0] -= inc_10_or_1; self.transform_world()
-		elif k in ['right', 's+right']: self.tx['shift'][1] += inc_10_or_1; self.transform_world()
-		elif k in ['left',  's+left']:  self.tx['shift'][1] -= inc_10_or_1; self.transform_world()
-		elif k in ['pageup', 's+pageup', 'prior', 's+prior']:   self.tx['rotate'] += inc_10_or_1; self.transform_world()
-		elif k in ['pagedown', 's+pagedown', 'next', 's+next']: self.tx['rotate'] -= inc_10_or_1; self.transform_world()
-		elif k in ['home']: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
-		elif k in ['end']:  self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
-		elif k in ['equal']: self.tx['flip'] = 2 if self.tx['flip'] != 0 else -1; self.transform_world()
+		elif k in ['down',  's+down',  'c+down' ]: self.tx['shift'][0] += inc_10_or_1 + inc_big_or_not * 50; self.transform_world()
+		elif k in ['up',    's+up',    'c+up'   ]: self.tx['shift'][0] -= inc_10_or_1 + inc_big_or_not * 50; self.transform_world()
+		elif k in ['right', 's+right', 'c+right']: self.tx['shift'][1] += inc_10_or_1 + inc_big_or_not * 50; self.transform_world()
+		elif k in ['left',  's+left',  'c+left' ]: self.tx['shift'][1] -= inc_10_or_1 + inc_big_or_not * 50; self.transform_world()
+		elif k in ['pageup',   's+pageup',   'c+pageup',   'prior', 's+prior', 'c+prior']: self.tx['rotate'] += inc_10_or_1 + inc_big_or_not * 45; self.transform_world()
+		elif k in ['pagedown', 's+pagedown', 'c+pagedown', 'next',  's+next' , 'c+next' ]: self.tx['rotate'] -= inc_10_or_1 + inc_big_or_not * 45; self.transform_world()
+		elif k in ['home'   ]: self.tx['flip'] = 0 if self.tx['flip'] != 0 else -1; self.transform_world()
+		elif k in ['end'    ]: self.tx['flip'] = 1 if self.tx['flip'] != 1 else -1; self.transform_world()
+		elif k in ['equal'  ]: self.tx['flip'] = 2 if self.tx['flip'] != 0 else -1; self.transform_world()
 		elif k in ['s+equal']: self.tx['flip'] = 3 if self.tx['flip'] != 0 else -1; self.transform_world()
 		elif k in ['m']: self.center_world()
 		elif k in ['c+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
@@ -620,7 +645,7 @@ class Lenia:
 				self.win.clipboard_clear()
 				self.win.clipboard_append(self.clipboard_st)
 				# print(self.clipboard_st)
-				self.status = "> board saved to clipboard"
+				status = "> board saved to clipboard"
 			elif k.endswith('s'):
 				with open('last_animal.rle', 'w', encoding='utf8') as file:
 					file.write('#N '+A.long_name()+'\n')
@@ -629,7 +654,7 @@ class Lenia:
 				data['cells'] = data['cells'].split('$')
 				with open('last_animal.json', 'w') as file:
 					json.dump(data, file, indent=4)
-				self.status = "> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle')
+				status = "> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle')
 		elif k in ['c+v']:
 			self.clipboard_st = self.win.clipboard_get()
 			data = json.loads(self.clipboard_st)
@@ -651,7 +676,8 @@ class Lenia:
 			self.update_info()
 
 	def get_acc_func(self, key, acc, animal_id=None):
-		acc = acc if acc else key.replace('s+','Shift+').replace('c+','Ctrl+').replace('a+','Slt+') if key else None
+		acc = acc if acc else key if key else None
+		if acc: acc = acc.replace('s+','Shift+').replace('c+','Ctrl+').replace('m+','Cmd+').replace('a+','Slt+')
 		if animal_id:
 			func = lambda:self.load_animal_id(int(animal_id))
 		else:
@@ -743,13 +769,13 @@ class Lenia:
 		items2 = ['^automaton.is_gpu|Use GPU|c+G' if self.automaton.has_gpu else '|No GPU available|']
 		self.menu.add_cascade(label='Main', menu=self.create_submenu(self.menu, [
 			'^is_run|Start...|Return', '|Once|Space'] + items2 + [None,
-			'@shw|Show|Tab', '@clr|Colors|QuoteLeft|`', None,
+			'@shw|Show|Tab', '|Show colormap|c+Tab', '@clr|Colors|QuoteLeft|`', None,
 			'|Save data|c+S', '^recorder.is_recording|Record video...|c+D', None,
 			'|Quit|Escape']))
 
 		self.menu.add_cascade(label='View', menu=self.create_submenu(self.menu, [
 			'|Center|M', '^is_auto_center|Auto center...|c+M', None,
-			'|(Small adjust)||Shift+Up',
+			'|(Small adjust)||s+Up', '|(Large adjust)||m+Up',
 			'|Move up|Up', '|Move down|Down', '|Move left|Left', '|Move right|Right',
 			'|Rotate clockwise|PageUp', '|Rotate anti-clockwise|PageDown', None,
 			'|Flip vertically|Home', '|Flip horizontally|End',
@@ -762,7 +788,7 @@ class Lenia:
 		self.menu.add_cascade(label='Animal', menu=self.create_submenu(self.menu, [
 			'@anm||', '|Place at center|Z', '|Place at random|X',
 			'|Previous animal|C', '|Next animal|V', '|Previous 10|s+Q', '|Next 10|s+A', None,
-			'|Shortcuts 1-10|1', '|Shortcuts 11-20|shift+1', '|Shortcuts 21-30|ctrl+1', None,
+			'|Shortcuts 1-10|1', '|Shortcuts 11-20|s+1', '|Shortcuts 21-30|c+1', None,
 			('Full list', self.get_animal_nested_list())]))
 
 		self.menu.add_cascade(label='World', menu=self.create_submenu(self.menu, [
@@ -777,7 +803,7 @@ class Lenia:
 			items2.append('|Shorter peak {n}|{key}'.format(n=i+1, key='s+'+'YUIOP'[i]))
 
 		self.menu.add_cascade(label='Params', menu=self.create_submenu(self.menu, [
-			'|(Small adjust)||Shift+W', None,
+			'|(Small adjust)||s+W', None,
 			'#m|Field center', '|Higher (m + 0.01)|Q', '|Lower (m - 0.01)|A',
 			'#s|Field width', '|Wider (s + 0.001)|W', '|Narrower (s - 0.001)|S', None,
 			'#R|Space units', '|Bigger (R + 10)|R', '|Smaller (R + 10)|F',
@@ -788,8 +814,9 @@ class Lenia:
 			'@clp|Clip|c+I', '@stp|Step|c+O', '@inv|Invert|c+P']))
 
 	def update_info(self):
-		if self.status:
-			print(self.status)
+		global status
+		if status:
+			print(status)
 		if self.excess_key:
 			print(self.excess_key)
 		if self.update:
