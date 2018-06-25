@@ -10,7 +10,7 @@ There are various versions available. Python, Matlab and JavaScript versions are
 ## Python Version
 Fastest version, real-time and interactive, minimalist layout.
 Now with GPU support!
-![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python.png)
+![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python3.png)
 
 ## Matlab Version
 Fast version, real-time and interactive, great tools for statistical analysis.
