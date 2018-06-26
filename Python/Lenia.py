@@ -1,21 +1,19 @@
-''' pip / pip3 install numpy, scipy, pillow, pyopencl, reikna '''
-import numpy as np
-import scipy.ndimage as snd
-import reikna.fft, reikna.cluda
+import numpy as np                 # pip install numpy
+import scipy.ndimage as snd        # pip install scipy
+import reikna.fft, reikna.cluda    # pip install pyopencl/pycuda, reikna
+from PIL import Image, ImageTk     # pip install pillow
+try: import tkinter as tk
+except: import Tkinter as tk
 from fractions import Fraction
 import copy, re, itertools, json
-import datetime, os, sys, subprocess
-from PIL import Image, ImageTk
-try:
-	import tkinter as tk
-except ImportError:
-	import Tkinter as tk
+import os, sys, subprocess, datetime
 import warnings
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')  # suppress warning from snd.zoom()
 
 PIXEL_2 = 0
+SIZE_2 = 10-1
 PIXEL = 1 << PIXEL_2
-SIZEX, SIZEY = 1 << (10-PIXEL_2), 1 << (9-PIXEL_2)    # 1<<9=512
+SIZEX, SIZEY = 1 << (SIZE_2-PIXEL_2), 1 << (SIZE_2-1-PIXEL_2)    # 1<<9=512
 # SIZEX, SIZEY = 1280, 720    # 720p HD
 # SIZEX, SIZEY = 1920, 1080    # 1080p HD
 # SIZEX, SIZEY = 1 << 5, 1 << 5; PIXEL = 1<<4    # 1<<9=512
@@ -28,7 +26,8 @@ RECORD_ROOT = 'record'
 FRAME_EXT = '.png'
 VIDEO_EXT = '.mp4'
 # VIDEO_CODEC = 'mp4v'  # .avi *'DIVX' / .mp4 *'mp4v' *'avc1'
-status = ""
+status = []
+is_windows = (os.name == 'nt')
 
 class Board:
 	def __init__(self, size=[0,0]):
@@ -184,57 +183,56 @@ class Recorder:
 		    https://trac.ffmpeg.org/wiki/Slideshow '''
 		global status
 		self.is_recording = True
-		status = "> start " + ("saving frames" if self.is_save_frames else "recording video") + "..."
+		status.append("> start " + ("saving frames" if self.is_save_frames else "recording video") + "...")
 		self.record_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 		self.record_seq = 1
 		if self.is_save_frames:
 			self.img_dir = os.path.join(RECORD_ROOT, self.record_id)
 			if not os.path.exists(self.img_dir):
 				os.makedirs(self.img_dir)
-		self.video_path = os.path.join(RECORD_ROOT, '{}-{}'.format(self.world.names[0].split('(')[0], self.record_id) + VIDEO_EXT)
-		# ffmpeg -y -r 25 -i %03d.png -c:v libx264 -pix_fmt yuv420p -crf 18 ../b.mp4
-		ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
-			'-loglevel', 'warning',
-			'-y',  # overwrite
-			'-f', 'rawvideo',
-			'-vcodec', 'rawvideo',
-			'-pix_fmt', 'rgb24',
-			'-s', '{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL),  # image size
-			'-r', '25',  # fps
-			'-i', '-',  # input from pipe
-			'-an',  # no audio
-			'-vcodec', 'libx264',  # video codec = H.264
-			'-pix_fmt', 'yuv420p',
-			'-crf', '17',  # constant rate factor, 0=lossless, 17-18=visually lossless
-			self.video_path]
-		self.video = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)    # stderr=subprocess.PIPE
-		# codec = cv2.VideoWriter_fourcc(*VIDEO_CODEC)
-		# self.video = cv2.VideoWriter(self.video_path, codec, 24, (SIZEX*PIXEL,SIZEY*PIXEL))
+		else:
+			self.video_path = os.path.join(RECORD_ROOT, '{}-{}'.format(self.world.names[0].split('(')[0], self.record_id) + VIDEO_EXT)
+			# ffmpeg -y -r 25 -i %03d.png -c:v libx264 -pix_fmt yuv420p -crf 18 ../b.mp4
+			ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
+				'-loglevel','warning', '-y',  # glocal options
+				'-f','rawvideo', '-vcodec','rawvideo', '-pix_fmt','rgb24',  # input options
+				'-s','{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL), '-r','25',
+				'-i','-',  # input pipe
+				'-an', '-vcodec','libx264', '-pix_fmt','yuv420p', '-crf','17',  # output options
+				self.video_path]  # ouput file
+			try:
+				self.video = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)    # stderr=subprocess.PIPE
+			except FileNotFoundError:
+				self.video = None
+				status.append("> no ffmpeg program found!")
 
 	def record_frame(self, img):
 		if self.is_save_frames:
 			img_path = os.path.join(RECORD_ROOT, self.record_id, '{:03d}'.format(self.record_seq) + FRAME_EXT)
 			img.save(img_path)
-		img_rgb = img.convert('RGB').tobytes()
-		# img_rgb = np.array(img.convert('RGB'))
-		# img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2RGB)
-		self.video.stdin.write(img_rgb)
-		self.record_seq += 1
+		elif self.video:
+			img_rgb = img.convert('RGB').tobytes()
+			self.video.stdin.write(img_rgb)
+			self.record_seq += 1
 
 	def finish_record(self):
 		global status
-		status = []
 		if self.is_save_frames:
-			# for img_name in sorted(os.listdir(self.img_dir)):
-			# 	if img_name.endswith(FRAME_EXT):
-			# 		self.video.stdin.write(cv2.imread(os.path.join(self.img_dir, img_name)))
 			status.append("> frames saved to '" + self.img_dir + "/*" + FRAME_EXT + "'")
-		self.video.stdin.close()
-		# self.video.wait()
-		# if self.video.returncode!=0:
-		# 	print(self.video.returncode)
-		status.append("> video  saved to '" + self.video_path + "'")
-		status = "\n".join(status)
+			ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
+				'-loglevel','warning', '-y',  # glocal options
+				'-f','rawvideo', '-vcodec','rawvideo', '-pix_fmt','rgb24',  # input options
+				'-s','{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL), '-r','25',
+				'-i',os.path.join(self.img_dir, '%03d'+FRAME_EXT),  # input files
+				'-an', '-vcodec','libx264', '-pix_fmt','yuv420p', '-crf','17',  # output options
+				self.video_path]  # ouput file
+			try:
+				subprocess.call(ffmpeg_cmd)
+			except FileNotFoundError:
+				status.append("> no ffmpeg program found!")
+		elif self.video:
+			self.video.stdin.close()
+			status.append(">  video saved to '" + self.video_path + "'")
 		self.is_recording = False
 
 class Automaton:
@@ -528,7 +526,7 @@ class Lenia:
 		buffer = np.repeat(np.repeat(buffer, PIXEL, axis=0), PIXEL, axis=1)
 		img = Image.frombuffer('P', (SIZEX*PIXEL,SIZEY*PIXEL), buffer, 'raw', 'P', 0, 1)
 		img.putpalette(self.colormaps[self.colormap_id])
-		if self.recorder.is_recording:
+		if self.recorder.is_recording and self.is_run:
 			self.recorder.record_frame(img)
 		photo = ImageTk.PhotoImage(image=img)
 		# photo = tk.PhotoImage(width=SIZEX, height=SIZEY)
@@ -569,7 +567,7 @@ class Lenia:
 		key = event.keysym
 		state = event.state
 		s = 's+' if state & 0x1 or (key.isalpha() and len(key)==1 and key.isupper()) else ''
-		c = 'c+' if state & 0x8 or state & 0x4 else ''
+		c = 'c+' if state & 0x4 or (not is_windows and state & 0x8) else ''
 		a = 'a+' if state & 0x20000 else ''
 		key = key.lower()
 		if key in self.SHIFT_KEYS:
@@ -591,7 +589,6 @@ class Lenia:
 		inc_or_not = 0 if 's+' not in k else 1
 
 		is_ignore = False
-		status = None
 		self.excess_key = None
 		self.update = None
 		if k in ['escape']: self.close()
@@ -645,7 +642,7 @@ class Lenia:
 				self.win.clipboard_clear()
 				self.win.clipboard_append(self.clipboard_st)
 				# print(self.clipboard_st)
-				status = "> board saved to clipboard"
+				status.append("> board saved to clipboard")
 			elif k.endswith('s'):
 				with open('last_animal.rle', 'w', encoding='utf8') as file:
 					file.write('#N '+A.long_name()+'\n')
@@ -654,7 +651,7 @@ class Lenia:
 				data['cells'] = data['cells'].split('$')
 				with open('last_animal.json', 'w') as file:
 					json.dump(data, file, indent=4)
-				status = "> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle')
+				status.append("> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle'))
 		elif k in ['c+v']:
 			self.clipboard_st = self.win.clipboard_get()
 			data = json.loads(self.clipboard_st)
@@ -664,6 +661,8 @@ class Lenia:
 			if self.automaton.has_gpu:
 				self.automaton.is_gpu = not self.automaton.is_gpu
 		elif k in [m+str(i) for i in range(10) for m in ['','s+','c+','s+c+']]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k)); self.update = 'anm'
+		elif k in ['comma']: self.update = 'param'
+		elif k in ['period']: self.update = 'anm'
 		elif k in ['slash']: m = self.menu.children[self.menu_values['anm'][0]].children['!menu']; m.post(self.win.winfo_rootx(), self.win.winfo_rooty())
 		elif k.endswith('_l') or k.endswith('_r'): is_ignore = True
 		else: self.excess_key = k
@@ -816,7 +815,8 @@ class Lenia:
 	def update_info(self):
 		global status
 		if status:
-			print(status)
+			print("\n".join(status))
+			status = []
 		if self.excess_key:
 			print(self.excess_key)
 		if self.update:
