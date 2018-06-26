@@ -8,27 +8,16 @@ There are various versions available. Python, Matlab and JavaScript versions are
 ![gyrorbium](https://github.com/Chakazul/Lenia/blob/master/Screencap/gyrorbium-ezgif.gif)
 
 ## Python Version
-Fastest version, real-time and interactive, minimalist layout.
-Now with GPU support!
+Fastest version, minimalist layout. Now with GPU support! (Needs Python3 and various libraries)
 ![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python3.png)
+![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python4.png)
 
 ## Matlab Version
-Fast version, real-time and interactive, great tools for statistical analysis.
-
-(you need a purchased copy of Matlab to run this version)
+Fast version, great tools for statistical analysis. (Needs purchased copy of Matlab)
 ![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Matlab.png)
 
 ## JavaScript Version
-Original version, real-time and interactive, slow but with most features and longer list of life forms.
+The original program, slow but with most features and longer list of life forms.
 ![screen cap 1](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript.png)
 ![screen cap 2](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript2.png)
 ![screen cap 3](https://github.com/Chakazul/Lenia/blob/master/Screencap/JavaScript3.png)
-
-## Jupyter Notebook Version
-Python version, real-time but not interactive.
-![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Jupyter2.png)
-
-## R Notebook Version
-R version, static, output to GIF only.
-![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/R.png)
-![result GIF](https://github.com/Chakazul/Lenia/blob/master/R/orbium.gif)
