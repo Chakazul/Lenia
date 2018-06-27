@@ -10,22 +10,16 @@ import os, sys, subprocess, datetime
 import warnings
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')  # suppress warning from snd.zoom()
 
-PIXEL_EXP, PIXEL_BORDER = 0,0    # 4,3  3,2  2,1  0,0
-SIZEX_EXP, SIZEY_EXP = 9,8    # 1<<9=512
-PIXEL = 1 << PIXEL_EXP
-SIZEX, SIZEY = 1 << (SIZEX_EXP-PIXEL_EXP), 1 << (SIZEY_EXP-PIXEL_EXP)
-# SIZEX, SIZEY = 1280, 720    # 720p HD
-# SIZEX, SIZEY = 1920, 1080    # 1080p HD
-# SIZEX, SIZEY = 1 << 5, 1 << 5; PIXEL = 1<<4    # 1<<9=512
+P2, PIXEL_BORDER = 0,0    # 4,2  3,1  2,1  0,0
+X2, Y2 = 8,8    # 10,9  9,8  8,8  1<<9=512
+PIXEL = 1 << P2; SIZEX, SIZEY = 1 << (X2-P2), 1 << (Y2-P2)
+# PIXEL, PIXEL_BORDER = 1,0; SIZEX, SIZEY = 1280//PIXEL, 720//PIXEL    # 720p HD
+# PIXEL, PIXEL_BORDER = 1,0; PIXEL_BORDER = 2; SIZEX, SIZEY = 1920, 1080    # 1080p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
 DEF_R = max(min(SIZEX, SIZEY) // 4 //5*5, 13)
 EPSILON = 1e-10
 ROUND = 10
 
-RECORD_ROOT = 'record'
-FRAME_EXT = '.png'
-VIDEO_EXT = '.mp4'
-# VIDEO_CODEC = 'mp4v'  # .avi *'DIVX' / .mp4 *'mp4v' *'avc1'
 status = []
 is_windows = (os.name == 'nt')
 
@@ -38,9 +32,9 @@ class Board:
 	@classmethod
 	def from_values(cls, names, params, cells):
 		self = cls()
-		self.names = names.copy()
-		self.params = params.copy()
-		self.cells = cells.copy()
+		self.names = names.copy() if names is not None else None
+		self.params = params.copy() if params is not None else None
+		self.cells = cells.copy() if cells is not None else None
 		return self
 
 	@classmethod
@@ -87,7 +81,7 @@ class Board:
 			rle_groups = [ [(len(list(g)),c.strip()) for c,g in itertools.groupby(row)] for row in code_arr]  # [[(2 yO)] [(1 yO) (1 .)]]
 			for row in rle_groups:
 				if row[-1][1]=='.': row.pop()  # [[(2 yO)] [(1 yO)]]
-			st = '$'.join(''.join([(str(n) if n>1 else '')+c for n,c in row]) for row in rle) + '!'  # "2 yO $ 1 yO"
+			st = '$'.join(''.join([(str(n) if n>1 else '')+c for n,c in row]) for row in rle_groups) + '!'  # "2 yO $ 1 yO"
 		else:
 			st = '$'.join(''.join(row) for row in code_arr) + '!'
 		# print(sum(sum(r) for r in V))
@@ -166,6 +160,10 @@ class Board:
 		self.cells = self.cells[y0:y1, x0:x1]
 		return self
 
+RECORD_ROOT = 'record'
+FRAME_EXT = '.png'
+VIDEO_EXT = '.mp4'
+
 class Recorder:
 	def __init__(self, world):
 		self.world = world
@@ -187,27 +185,33 @@ class Recorder:
 		global status
 		self.is_recording = True
 		status.append("> start " + ("saving frames" if self.is_save_frames else "recording video") + "...")
-		self.record_id = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+		self.record_id = '{}-{}'.format(self.world.names[0].split('(')[0], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
 		self.record_seq = 1
 		if self.is_save_frames:
 			self.img_dir = os.path.join(RECORD_ROOT, self.record_id)
 			if not os.path.exists(self.img_dir):
 				os.makedirs(self.img_dir)
 		else:
-			self.video_path = os.path.join(RECORD_ROOT, '{}-{}'.format(self.world.names[0].split('(')[0], self.record_id) + VIDEO_EXT)
-			# ffmpeg -y -r 25 -i %03d.png -c:v libx264 -pix_fmt yuv420p -crf 18 ../b.mp4
+			self.video_path = os.path.join(RECORD_ROOT, self.record_id + VIDEO_EXT)
 			ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
 				'-loglevel','warning', '-y',  # glocal options
 				'-f','rawvideo', '-vcodec','rawvideo', '-pix_fmt','rgb24',  # input options
-				'-s','{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL), '-r','25',
+				'-s','{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL), '-r','24',
 				'-i','-',  # input pipe
-				'-an', '-vcodec','libx264', '-pix_fmt','yuv420p', '-crf','17',  # output options
+				'-an', '-vcodec','h264', '-pix_fmt','yuv420p', '-crf','17',  # output options
 				self.video_path]  # ouput file
 			try:
 				self.video = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)    # stderr=subprocess.PIPE
 			except FileNotFoundError:
 				self.video = None
 				status.append("> no ffmpeg program found!")
+
+	def save_image(self, img):
+		global status
+		self.record_id = '{}-{}'.format(self.world.names[0].split('(')[0], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
+		img_path = os.path.join(RECORD_ROOT, self.record_id + FRAME_EXT)
+		img.save(img_path)
+		status.append("> image saved to '" + os.path.join(RECORD_ROOT, self.record_id + FRAME_EXT) + "'")
 
 	def record_frame(self, img):
 		if self.is_save_frames:
@@ -382,6 +386,7 @@ class Lenia:
 		self.update = None
 		self.clear_job = None
 		self.value_min = 0
+		self.is_save_image = False
 
 		self.read_animals()
 		self.world = Board((SIZEY, SIZEX))
@@ -419,7 +424,7 @@ class Lenia:
 			id = next(it, None)
 		return id
 
-	def load_part(self, part, is_replace=True, is_random=False, is_set_params=True):
+	def load_part(self, part, is_replace=True, is_random=False, is_set_params=True, repeat=1):
 		self.fore = part
 		if part.names[0].startswith('~'):
 			part.names[0] = part.names[0].lstrip('~')
@@ -447,14 +452,15 @@ class Lenia:
 				self.world.clear(value_min=self.value_min)
 				self.automaton.reset()
 			self.clear_transform()
-			if is_random:
-				self.tx['rotate'] = np.random.random() * 360
-				h1, w1 = self.world.cells.shape
-				h, w = min(part.cells.shape, self.world.cells.shape)
-				self.tx['shift'][1] = np.random.randint(w1 + w) - w1//2
-				self.tx['shift'][0] = np.random.randint(h1 + h) - h1//2
-				self.tx['flip'] = np.random.randint(3) - 1
-			self.world.add_transformed(part, self.tx, value_min=self.value_min)
+			for i in range(repeat):
+				if is_random:
+					self.tx['rotate'] = np.random.random() * 360
+					h1, w1 = self.world.cells.shape
+					h, w = min(part.cells.shape, self.world.cells.shape)
+					self.tx['shift'][1] = np.random.randint(w1 + w) - w1//2
+					self.tx['shift'][0] = np.random.randint(h1 + h) - h1//2
+					self.tx['flip'] = np.random.randint(3) - 1
+				self.world.add_transformed(part, self.tx, value_min=self.value_min)
 
 	def transform_world(self):
 		if self.is_layered:
@@ -485,6 +491,15 @@ class Lenia:
 
 	def clear_world(self):
 		self.world.clear(value_min=self.value_min)
+		if self.is_layered:
+			self.back = copy.deepcopy(self.world)
+		self.automaton.reset()
+
+	def random_world(self):
+		self.world.clear(value_min=self.value_min)
+		border = self.world.params['R']
+		rand = np.random.rand(SIZEY - border*2, SIZEX - border*2) * (1-self.value_min) + self.value_min
+		self.world.add(Board.from_values(None, None, rand))
 		if self.is_layered:
 			self.back = copy.deepcopy(self.world)
 		self.automaton.reset()
@@ -546,6 +561,9 @@ class Lenia:
 		img.putpalette(self.colormaps[self.colormap_id])
 		if self.recorder.is_recording and self.is_run:
 			self.recorder.record_frame(img)
+		if self.is_save_image:
+			self.recorder.save_image(img)
+			self.is_save_image = False
 		photo = ImageTk.PhotoImage(image=img)
 		# photo = tk.PhotoImage(width=SIZEX, height=SIZEY)
 		self.canvas.itemconfig(panel, image=photo)
@@ -646,8 +664,8 @@ class Lenia:
 		elif k in ['c', 's+c']: self.load_animal_id(self.animal_id - inc_1_or_10); self.update = 'anm'
 		elif k in ['v', 's+v']: self.load_animal_id(self.animal_id + inc_1_or_10); self.update = 'anm'
 		elif k in ['z']: self.load_animal_id(self.animal_id); self.update = 'anm'
-		elif k in ['x']: self.load_part(self.fore, is_random=True, is_replace=False)
-		elif k in ['b']: pass # random
+		elif k in ['x', 's+x']: self.load_part(self.fore, is_random=True, is_replace=False, repeat=inc_1_or_10)
+		elif k in ['b']: self.random_world()
 		elif k in ['n']: pass # random last seed
 		elif k in ['c+z']: self.is_auto_load = not self.is_auto_load
 		elif k in ['c+x']: self.is_layered = not self.is_layered
@@ -670,6 +688,7 @@ class Lenia:
 				with open('last_animal.json', 'w') as file:
 					json.dump(data, file, indent=4)
 				status.append("> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle'))
+				self.is_save_image = True
 		elif k in ['c+v']:
 			self.clipboard_st = self.win.clipboard_get()
 			data = json.loads(self.clipboard_st)
@@ -787,7 +806,7 @@ class Lenia:
 		self.menu.add_cascade(label='Main', menu=self.create_submenu(self.menu, [
 			'^is_run|Start...|Return', '|Once|Space'] + items2 + [None,
 			'@shw|Show|Tab', '|Show colormap|c+Tab', '@clr|Colors|QuoteLeft|`', None,
-			'|Save data|c+S', '^recorder.is_recording|Record video...|c+D', None,
+			'|Save data & image|c+S', '^recorder.is_recording|Record video...|c+D', None,
 			'|Quit|Escape']))
 
 		self.menu.add_cascade(label='View', menu=self.create_submenu(self.menu, [
@@ -824,6 +843,7 @@ class Lenia:
 			'#m|Field center', '|Higher (m + 0.01)|Q', '|Lower (m - 0.01)|A',
 			'#s|Field width', '|Wider (s + 0.001)|W', '|Narrower (s - 0.001)|S', None,
 			'#R|Space units', '|Bigger (R + 10)|R', '|Smaller (R + 10)|F',
+			'|Reset|c+R', '|Set to animal\'s|c+F',
 			'#T|Time units', '|Faster (T + 10)|T', '|Slower (T - 10)|G', None,
 			'#b|Kernel peaks', ('Change', items2), None,
 			'|[Options]|', '|Random params|Backslash|\\', 
