@@ -10,15 +10,15 @@ import os, sys, subprocess, datetime
 import warnings
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')  # suppress warning from snd.zoom()
 
-PIXEL_2 = 0
-SIZE_2 = 10-1
-PIXEL = 1 << PIXEL_2
-SIZEX, SIZEY = 1 << (SIZE_2-PIXEL_2), 1 << (SIZE_2-1-PIXEL_2)    # 1<<9=512
+PIXEL_EXP, PIXEL_BORDER = 0,0    # 4,3  3,2  2,1  0,0
+SIZEX_EXP, SIZEY_EXP = 9,8    # 1<<9=512
+PIXEL = 1 << PIXEL_EXP
+SIZEX, SIZEY = 1 << (SIZEX_EXP-PIXEL_EXP), 1 << (SIZEY_EXP-PIXEL_EXP)
 # SIZEX, SIZEY = 1280, 720    # 720p HD
 # SIZEX, SIZEY = 1920, 1080    # 1080p HD
 # SIZEX, SIZEY = 1 << 5, 1 << 5; PIXEL = 1<<4    # 1<<9=512
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
-DEF_R = min(SIZEX, SIZEY) // 4 //5*5
+DEF_R = max(min(SIZEX, SIZEY) // 4 //5*5, 13)
 EPSILON = 1e-10
 ROUND = 10
 
@@ -72,36 +72,39 @@ class Board:
 
 	def long_name(self):
 		# return ' | '.join(filter(None, self.names))
-		return '{0} {1} {2}'.format(*self.names)
+		return '{0} - {1} {2}'.format(*self.names)
 
 	@staticmethod
 	def arr2rle(A, is_shorten=True):
-		''' RLE = Run-length encoding
+		''' RLE = Run-length encoding: 
 			http://www.conwaylife.com/w/index.php?title=Run_Length_Encoded
 			http://golly.sourceforge.net/Help/formats.html#rle
 			https://www.rosettacode.org/wiki/Run-length_encoding#Python
-			A=[0 0 1] <-> V=[0 0 255] <-> code=[. . yO] <-> rle=[(2 .)(1 yO)] <-> st='2.yO'
 			0=b=.  1=o=A  1-24=A-X  25-48=pA-pX  49-72=qA-qX  241-255=yA-yO '''
-		V = np.rint(A*255).astype(int).tolist()
-		code = [ [' .' if v==0 else ' '+chr(ord('A')+v-1) if v<25 else chr(ord('p')+(v-25)//24) + chr(ord('A')+(v-25)%24) for v in row] for row in V]
+		V = np.rint(A*255).astype(int).tolist()  # [[255 255] [255 0]]
+		code_arr = [ [' .' if v==0 else ' '+chr(ord('A')+v-1) if v<25 else chr(ord('p')+(v-25)//24) + chr(ord('A')+(v-25)%24) for v in row] for row in V]  # [[yO yO] [yO .]]
 		if is_shorten:
-			rle = [ [(len(list(g)),k.strip()) for k,g in itertools.groupby(row)] for row in code]
-			for row in rle:
-				if row[-1][1]=='.': row.pop()
-			st = '$'.join(''.join([(str(n) if n>1 else '')+k for n,k in row]) for row in rle) + '!'
+			rle_groups = [ [(len(list(g)),c.strip()) for c,g in itertools.groupby(row)] for row in code_arr]  # [[(2 yO)] [(1 yO) (1 .)]]
+			for row in rle_groups:
+				if row[-1][1]=='.': row.pop()  # [[(2 yO)] [(1 yO)]]
+			st = '$'.join(''.join([(str(n) if n>1 else '')+c for n,c in row]) for row in rle) + '!'  # "2 yO $ 1 yO"
 		else:
-			st = '$'.join(''.join(row) for row in code) + '!'
+			st = '$'.join(''.join(row) for row in code_arr) + '!'
 		# print(sum(sum(r) for r in V))
 		return st
 
 	@staticmethod
 	def rle2arr(st):
-		lines = st.rstrip('!').split('$')
-		rle = [re.findall('(\d*)([p-y]?[.boA-X])', row) for row in lines]
-		code = [ sum([[k] * (1 if n=='' else int(n)) for n,k in row], []) for row in rle]
-		V = [ [0 if c=='.' else ord(c)-ord('A')+1 if len(c)==1 else (ord(c[0])-ord('p'))*24+(ord(c[1])-ord('A')+25) for c in row ] for row in code]
+		rle_groups = re.findall('(\d*)([p-y]?[.boA-X$])', st.rstrip('!'))  # [(2 yO)(1 $)(1 yO)]
+		code_list = sum([[c] * (1 if n=='' else int(n)) for n,c in rle_groups], [])  # [yO yO $ yO]
+		code_arr = [l.split(',') for l in ','.join(code_list).split('$')]  # [[yO yO] [yO]]
+		V = [ [0 if c in ['.','b'] else 255 if c=='o' else ord(c)-ord('A')+1 if len(c)==1 else (ord(c[0])-ord('p'))*24+(ord(c[1])-ord('A')+25) for c in row if c!='' ] for row in code_arr]  # [[255 255] [255]]
+		# lines = st.rstrip('!').split('$')
+		# rle = [re.findall('(\d*)([p-y]?[.boA-X])', row) for row in lines]
+		# code = [ sum([[c] * (1 if n=='' else int(n)) for n,c in row], []) for row in rle]
+		# V = [ [0 if c in ['.','b'] else 255 if c=='o' else ord(c)-ord('A')+1 if len(c)==1 else (ord(c[0])-ord('p'))*24+(ord(c[1])-ord('A')+25) for c in row ] for row in code]
 		maxlen = len(max(V, key=len))
-		A = np.array([row + [0] * (maxlen - len(row)) for row in V])/255
+		A = np.array([row + [0] * (maxlen - len(row)) for row in V])/255  # [[1 1] [1 0]]
 		# print(sum(sum(r) for r in V))
 		return A
 
@@ -237,12 +240,15 @@ class Recorder:
 
 class Automaton:
 	kernel_core = {
-		0: lambda r: (4 * r * (1-r))**4,  # quad4
-		1: lambda r: np.exp( 4 - 1 / (r * (1-r)) )  # bump4
+		0: lambda r: (4 * r * (1-r))**4,  # polynomial (quad4)
+		1: lambda r: np.exp( 4 - 1 / (r * (1-r)) ),  # exponential / gaussian bump (bump4)
+		2: lambda r, q=1/4: (r>=q)*(r<=1-q),  # step (stpz1/4)
+		3: lambda r, q=1/4: (r>=q)*(r<=1-q) + (r<q)*0.5 # staircase (life)
 	}
 	field_func = {
-		0: lambda n, m, s: np.maximum(0, 1 - (n-m)**2 / (9 * s**2) )**4 * 2 - 1,  # quad4
-		1: lambda n, m, s: np.exp( - (n-m)**2 / (2 * s**2) ) * 2 - 1  # gaus
+		0: lambda n, m, s: np.maximum(0, 1 - (n-m)**2 / (9 * s**2) )**4 * 2 - 1,  # polynomial (quad4)
+		1: lambda n, m, s: np.exp( - (n-m)**2 / (2 * s**2) ) * 2 - 1,  # exponential / gaussian (gaus)
+		2: lambda n, m, s: (np.abs(n-m)<=s) * 2 - 1  # step (stpz)
 	}
 
 	def __init__(self, world):
@@ -415,13 +421,23 @@ class Lenia:
 
 	def load_part(self, part, is_replace=True, is_random=False, is_set_params=True):
 		self.fore = part
-		# if part.names[0].startswith('~'):
-			# part.names[0] = part.names[0].lstrip('~')
-			# self.world.params['R'] = part.params['R']
-			# self.automaton.calc_kernel()
+		if part.names[0].startswith('~'):
+			part.names[0] = part.names[0].lstrip('~')
+			self.world.params['R'] = part.params['R']
+			self.automaton.calc_kernel()
 		if is_replace:
 			self.world.names = part.names.copy()
 		if part.params is not None and part.cells is not None:
+			is_life = ((self.world.params.get('kn') or self.automaton.kn) == 4)
+			will_be_life = ((part.params.get('kn') or self.automaton.kn) == 4)
+			if not is_life and will_be_life:
+				self.colormap_id = len(self.colormaps) - 1
+				self.win.title('Conway\'s Game of Life')
+			elif is_life and not will_be_life:
+				self.colormap_id = 0
+				self.world.params['R'] = DEF_R
+				self.automaton.calc_kernel()
+				self.win.title('Lenia')
 			if self.is_layered:
 				self.back = copy.deepcopy(self.world)
 			if is_replace and not self.is_layered:
@@ -521,9 +537,11 @@ class Lenia:
 			# self.kernel_updated = True
 		#self.win.update()
 
-	def show_panel(self, panel, A, vmin=0, vmax=1):
+	def show_panel(self, panel, A, vmin=0, vmax=1, vzero=0):
 		buffer = np.uint8(np.clip((A-vmin) / (vmax-vmin), 0, 1) * 255)  # .copy(order='C')
 		buffer = np.repeat(np.repeat(buffer, PIXEL, axis=0), PIXEL, axis=1)
+		for i in range(PIXEL_BORDER):
+			buffer[i::PIXEL, :] = vzero; buffer[:, i::PIXEL] = vzero
 		img = Image.frombuffer('P', (SIZEX*PIXEL,SIZEY*PIXEL), buffer, 'raw', 'P', 0, 1)
 		img.putpalette(self.colormaps[self.colormap_id])
 		if self.recorder.is_recording and self.is_run:
@@ -575,9 +593,9 @@ class Lenia:
 			s = 's+'
 		self.key_press(s + c + a + key)
 
-	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'P4(a)', '4':'PV1', '5':'2S1:5', '6':'2S2:2', '7':'P6,3s', '8':'2PG1:2', '9':'3H3', '0':'', \
-		's+1':'3G:4', 's+2':'3GG', 's+3':'K5(4,1)', 's+4':'K7(4,3)', 's+5':'K9(5,4)', 's+6':'3A5', 's+7':'4A6', 's+8':'2D10', 's+9':'4F12', 's+0':'', \
-		'c+1':'4Q(5,5,5,5):3', 'c+2':'2P7:2', 'c+3':'3GA', 'c+4':'K4(2,2):3', 'c+5':'K4(2,2):5', 'c+6':'3R4(3,3,2):4', 'c+7':'3F6', 'c+8':'4F7', 'c+9':'', 'c+0':''}
+	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'P4(a)', '4':'PV1', '5':'2S1:5', '6':'2S2:2', '7':'P6,3s', '8':'2PG1:2', '9':'3H3', '0':'~gldr', \
+		's+1':'3G:4', 's+2':'3GG', 's+3':'K5(4,1)', 's+4':'K7(4,3)', 's+5':'K9(5,4)', 's+6':'3A5', 's+7':'4A6', 's+8':'2D10', 's+9':'4F12', 's+0':'~ggun', \
+		'c+1':'4Q(5,5,5,5):3', 'c+2':'2P7:2', 'c+3':'3GA', 'c+4':'K4(2,2):3', 'c+5':'K4(2,2):5', 'c+6':'3R4(3,3,2):4', 'c+7':'3F6', 'c+8':'4F7', 'c+9':'', 'c+0':'bbug'}
 	def key_press(self, k):
 		global status
 		inc_or_dec = 1 if 's+' not in k else -1
@@ -739,8 +757,8 @@ class Lenia:
 		self.menu.children[info[0]].entryconfig(info[1], label='{text} [{value}]'.format(text=text if text else info[2], value=value))
 	def get_value_text(self, name):
 		if name=='anm': return '#'+str(self.animal_id+1)+' '+self.world.long_name()
-		elif name=='kn': return ["Polynomial","Exponential"][(self.world.params.get('kn') or self.automaton.kn) - 1]
-		elif name=='gn': return ["Polynomial","Exponential"][(self.world.params.get('gn') or self.automaton.gn) - 1]
+		elif name=='kn': return ["Polynomial","Exponential","Step","Staircase"][(self.world.params.get('kn') or self.automaton.kn) - 1]
+		elif name=='gn': return ["Polynomial","Exponential","Step"][(self.world.params.get('gn') or self.automaton.gn) - 1]
 		elif name=='clp': return ["Hard","Soft"][self.automaton.clip_mode]
 		elif name=='stp': return ["Single","Multi"][self.automaton.is_multistep]
 		elif name=='inv': return ["Normal","Inverted"][self.world.params['T']<0]
@@ -808,7 +826,7 @@ class Lenia:
 			'#R|Space units', '|Bigger (R + 10)|R', '|Smaller (R + 10)|F',
 			'#T|Time units', '|Faster (T + 10)|T', '|Slower (T - 10)|G', None,
 			'#b|Kernel peaks', ('Change', items2), None,
-			'|[Options]|' '|Random params|Backslash|\\', 
+			'|[Options]|', '|Random params|Backslash|\\', 
 			'@kn|Kernel|c+Y', '@gn|Field|c+U',
 			'@clp|Clip|c+I', '@stp|Step|c+O', '@inv|Invert|c+P']))
 
@@ -835,8 +853,7 @@ class Lenia:
 
 if __name__ == '__main__':
 	lenia = Lenia()
-	lenia.load_animal_code(lenia.ANIMAL_KEY_LIST['1'])
-#	lenia.load_animal_code(lenia.ANIMAL_KEY_LIST['2'])
+	lenia.load_animal_code(lenia.ANIMAL_KEY_LIST['2'])
 	lenia.update_menu()
 	lenia.loop()
 
