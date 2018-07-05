@@ -11,7 +11,7 @@ import warnings
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')  # suppress warning from snd.zoom()
 
 P2, PIXEL_BORDER = 0,0    # 4,2  3,1  2,1  0,0
-X2, Y2 = 9,9    # 10,9  9,8  8,8  1<<9=512
+X2, Y2 = 10,9    # 10,9  9,8  8,8  1<<9=512
 PIXEL = 1 << P2; SIZEX, SIZEY = 1 << (X2-P2), 1 << (Y2-P2)
 # PIXEL, PIXEL_BORDER = 1,0; SIZEX, SIZEY = 1280//PIXEL, 720//PIXEL    # 720p HD
 # PIXEL, PIXEL_BORDER = 1,0; SIZEX, SIZEY = 1920//PIXEL, 1080//PIXEL    # 1080p HD
