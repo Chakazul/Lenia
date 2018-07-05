@@ -1,24 +1,25 @@
-import numpy as np                 # pip install numpy
-import scipy.ndimage as snd        # pip install scipy
-import reikna.fft, reikna.cluda    # pip install pyopencl/pycuda, reikna
-from PIL import Image, ImageTk     # pip install pillow
+import numpy as np                 # pip3 install numpy
+import scipy.ndimage as snd        # pip3 install scipy
+import reikna.fft, reikna.cluda    # pip3 install pyopencl/pycuda, reikna
+from PIL import Image, ImageTk     # pip3 install pillow
 try: import tkinter as tk
 except: import Tkinter as tk
 from fractions import Fraction
-import copy, re, itertools, json
-import os, sys, subprocess, datetime
+import copy, re, itertools, json, csv
+import os, sys, subprocess, datetime, time
 import warnings
 warnings.filterwarnings('ignore', '.*output shape of zoom.*')  # suppress warning from snd.zoom()
 
 P2, PIXEL_BORDER = 0,0    # 4,2  3,1  2,1  0,0
-X2, Y2 = 10,9    # 10,9  9,8  8,8  1<<9=512
+X2, Y2 = 9,9    # 10,9  9,8  8,8  1<<9=512
 PIXEL = 1 << P2; SIZEX, SIZEY = 1 << (X2-P2), 1 << (Y2-P2)
 # PIXEL, PIXEL_BORDER = 1,0; SIZEX, SIZEY = 1280//PIXEL, 720//PIXEL    # 720p HD
-# PIXEL, PIXEL_BORDER = 1,0; PIXEL_BORDER = 2; SIZEX, SIZEY = 1920, 1080    # 1080p HD
+# PIXEL, PIXEL_BORDER = 1,0; SIZEX, SIZEY = 1920//PIXEL, 1080//PIXEL    # 1080p HD
 MIDX, MIDY = int(SIZEX / 2), int(SIZEY / 2)
 DEF_R = max(min(SIZEX, SIZEY) // 4 //5*5, 13)
 EPSILON = 1e-10
 ROUND = 10
+FPS_FREQ = 20
 
 status = []
 is_windows = (os.name == 'nt')
@@ -160,17 +161,32 @@ class Board:
 		self.cells = self.cells[y0:y1, x0:x1]
 		return self
 
-RECORD_ROOT = 'record'
-FRAME_EXT = '.png'
-VIDEO_EXT = '.mp4'
-
 class Recorder:
+	RECORD_ROOT = 'record'
+	FRAME_EXT = '.png'
+	VIDEO_EXT = '.mov'
+	GIF_EXT = '.gif'
+	ANIM_FPS = 25
+	ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
+		'-loglevel','warning', '-y',  # glocal options
+		'-f','rawvideo', '-vcodec','rawvideo', '-pix_fmt','rgb24',  # input options
+		'-s','{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL), '-r',str(ANIM_FPS),
+		'-i','{input}',  # input pipe
+		# '-an', '-vcodec','h264', '-pix_fmt','yuv420p', '-crf','1',  # output options
+		'-an', '-vcodec','copy',  # output options
+		'{output}']  # ouput file
+
 	def __init__(self, world):
 		self.world = world
 		self.is_recording = False
 		self.is_save_frames = False
 		self.record_id = None
 		self.record_seq = None
+		self.img_dir = None
+		self.video_path = None
+		self.video = None
+		self.gif_path = None
+		self.gif = None
 
 	def toggle_recording(self, is_save_frames=False):
 		self.is_save_frames = is_save_frames
@@ -184,62 +200,57 @@ class Recorder:
 		    https://trac.ffmpeg.org/wiki/Slideshow '''
 		global status
 		self.is_recording = True
-		status.append("> start " + ("saving frames" if self.is_save_frames else "recording video") + "...")
+		status.append("> start " + ("saving frames" if self.is_save_frames else "recording video") + " and GIF...")
 		self.record_id = '{}-{}'.format(self.world.names[0].split('(')[0], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
 		self.record_seq = 1
+		self.video_path = os.path.join(self.RECORD_ROOT, self.record_id + self.VIDEO_EXT)
+		self.gif_path = os.path.join(self.RECORD_ROOT, self.record_id + self.GIF_EXT)
+		self.img_dir = os.path.join(self.RECORD_ROOT, self.record_id)
 		if self.is_save_frames:
-			self.img_dir = os.path.join(RECORD_ROOT, self.record_id)
 			if not os.path.exists(self.img_dir):
 				os.makedirs(self.img_dir)
 		else:
-			self.video_path = os.path.join(RECORD_ROOT, self.record_id + VIDEO_EXT)
-			ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
-				'-loglevel','warning', '-y',  # glocal options
-				'-f','rawvideo', '-vcodec','rawvideo', '-pix_fmt','rgb24',  # input options
-				'-s','{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL), '-r','24',
-				'-i','-',  # input pipe
-				'-an', '-vcodec','h264', '-pix_fmt','yuv420p', '-crf','17',  # output options
-				self.video_path]  # ouput file
+			cmd = [s.replace('{input}', '-').replace('{output}', self.video_path) for s in self.ffmpeg_cmd]
 			try:
-				self.video = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)    # stderr=subprocess.PIPE
+				self.video = subprocess.Popen(cmd, stdin=subprocess.PIPE)    # stderr=subprocess.PIPE
 			except FileNotFoundError:
 				self.video = None
 				status.append("> no ffmpeg program found!")
+		self.gif = []
 
-	def save_image(self, img):
-		global status
+	def save_image(self, img, filename=None):
 		self.record_id = '{}-{}'.format(self.world.names[0].split('(')[0], datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
-		img_path = os.path.join(RECORD_ROOT, self.record_id + FRAME_EXT)
+		img_path = filename + self.FRAME_EXT if filename else os.path.join(self.RECORD_ROOT, self.record_id + self.FRAME_EXT)
 		img.save(img_path)
-		status.append("> image saved to '" + os.path.join(RECORD_ROOT, self.record_id + FRAME_EXT) + "'")
 
 	def record_frame(self, img):
 		if self.is_save_frames:
-			img_path = os.path.join(RECORD_ROOT, self.record_id, '{:03d}'.format(self.record_seq) + FRAME_EXT)
+			img_path = os.path.join(self.RECORD_ROOT, self.record_id, '{:03d}'.format(self.record_seq) + self.FRAME_EXT)
 			img.save(img_path)
-		elif self.video:
-			img_rgb = img.convert('RGB').tobytes()
-			self.video.stdin.write(img_rgb)
-			self.record_seq += 1
+		else:
+			if self.video:
+				img_rgb = img.convert('RGB').tobytes()
+				self.video.stdin.write(img_rgb)
+		self.gif.append(img)
+		self.record_seq += 1
 
 	def finish_record(self):
 		global status
 		if self.is_save_frames:
-			status.append("> frames saved to '" + self.img_dir + "/*" + FRAME_EXT + "'")
-			ffmpeg_cmd = ['/usr/local/bin/ffmpeg',
-				'-loglevel','warning', '-y',  # glocal options
-				'-f','rawvideo', '-vcodec','rawvideo', '-pix_fmt','rgb24',  # input options
-				'-s','{}x{}'.format(SIZEX*PIXEL, SIZEY*PIXEL), '-r','25',
-				'-i',os.path.join(self.img_dir, '%03d'+FRAME_EXT),  # input files
-				'-an', '-vcodec','libx264', '-pix_fmt','yuv420p', '-crf','17',  # output options
-				self.video_path]  # ouput file
+			status.append("> frames saved to '" + self.img_dir + "/*" + self.FRAME_EXT + "'")
+			cmd = [s.replace('{input}', os.path.join(self.img_dir, '%03d'+self.FRAME_EXT)).replace('{output}', self.video_path) for s in self.ffmpeg_cmd]
 			try:
-				subprocess.call(ffmpeg_cmd)
+				subprocess.call(cmd)
 			except FileNotFoundError:
+				self.video = None
 				status.append("> no ffmpeg program found!")
-		elif self.video:
-			self.video.stdin.close()
-			status.append(">  video saved to '" + self.video_path + "'")
+		else:
+			if self.video:
+				self.video.stdin.close()
+				status.append("> video saved to '" + self.video_path + "'")
+		self.gif[0].save(self.gif_path, format=self.GIF_EXT.lstrip('.'), save_all=True, append_images=self.gif[1:], loop=0, duration=1000//self.ANIM_FPS)
+		self.gif = None
+		status.append("> GIF saved to '" + self.gif_path + "'")
 		self.is_recording = False
 
 class Automaton:
@@ -257,10 +268,15 @@ class Automaton:
 
 	def __init__(self, world):
 		self.world = world
+		self.world_FFT = np.zeros(world.cells.shape)
+		self.potential_FFT = np.zeros(world.cells.shape)
 		self.potential = np.zeros(world.cells.shape)
 		self.field = np.zeros(world.cells.shape)
 		self.field_old = None
 		self.change = np.zeros(world.cells.shape)
+		self.X = None
+		self.Y = None
+		self.D = None
 		self.gen = 0
 		self.time = 0
 		self.is_multistep = False
@@ -298,16 +314,15 @@ class Automaton:
 		self.gpu_api = self.gpu_thr = self.gpu_fft = self.gpu_fftshift = None
 		try:
 			self.gpu_api = reikna.cluda.any_api()
-		except Exception as exc:
-			if str(exc) == "No supported GPGPU APIs found":
-				self.has_gpu = False
-				self.is_gpu = False
-			else:
-				raise
-		if self.has_gpu:
 			self.gpu_thr = self.gpu_api.Thread.create()
 			self.gpu_fft = reikna.fft.FFT(A.astype(np.complex64)).compile(self.gpu_thr)
 			self.gpu_fftshift = reikna.fft.FFTShift(A.astype(np.float32)).compile(self.gpu_thr)
+		except Exception as exc:
+			# if str(exc) == "No supported GPGPU APIs found":
+			self.has_gpu = False
+			self.is_gpu = False
+			print(exc)
+			# raise exc
 
 	def run_gpu(self, A, cpu_func, gpu_func, dtype, **kwargs):
 		if self.is_gpu and self.gpu_thr and gpu_func:
@@ -324,8 +339,9 @@ class Automaton:
 
 	def calc_once(self, is_update=True):
 		A = self.world.cells
-		world_FFT = self.fft(A)
-		self.potential = self.fftshift(np.real(self.ifft(self.kernel_FFT * world_FFT)))
+		self.world_FFT = self.fft(A)
+		self.potential_FFT = self.kernel_FFT * self.world_FFT
+		self.potential = self.fftshift(np.real(self.ifft(self.potential_FFT)))
 		gfunc = Automaton.field_func[(self.world.params.get('gn') or self.gn) - 1]
 		self.field = gfunc(self.potential, self.world.params['m'], self.world.params['s'])
 		dt = 1 / self.world.params['T']
@@ -350,9 +366,9 @@ class Automaton:
 
 	def calc_kernel(self):
 		I, J = np.meshgrid(np.arange(SIZEX), np.arange(SIZEY))
-		X = (I-MIDX) / self.world.params['R']
-		Y = (J-MIDY) / self.world.params['R']
-		self.D = np.sqrt(X**2 + Y**2)
+		self.X = (I-MIDX) / self.world.params['R']
+		self.Y = (J-MIDY) / self.world.params['R']
+		self.D = np.sqrt(self.X**2 + self.Y**2)
 
 		self.kernel = self.kernel_shell(self.D)
 		self.kernel_sum = np.sum(self.kernel)
@@ -365,21 +381,128 @@ class Automaton:
 		self.time = 0
 		self.field_old = None
 
+class Analyzer:
+	def __init__(self, automaton):
+		self.automaton = automaton
+		self.world = self.automaton.world
+		self.reset()
+
+	def reset(self):
+		self.population = 0
+		self.mass = 0
+		self.is_empty = True
+		self.is_full = False
+		self.growth = 0
+		self.inertia = 0
+		self.m_center = 0
+		self.g_center = 0
+		self.mg_dist = 0
+		self.m_last_center = None
+		self.m_shift = 0
+		self.m_total_shift = 0
+		self.m_angle = 0
+		self.m_last_angle = None
+		self.m_rotate = 0
+		self.shape_major_axis = 0
+		self.shape_minor_axis = 0
+		self.shape_eccentricity = 0
+		self.shape_compactness = 0
+		self.shape_orientation = 0
+		self.moments = {}
+		self.series = None
+
+	def calc_stat(self):
+		A = self.world.cells
+		G = np.maximum(self.automaton.field, 0)
+		h, w = A.shape
+		X = self.automaton.X
+		Y = self.automaton.Y
+		self.population = np.sum(A > 0)
+		m00 = self.mass = np.sum(A)
+		g00 = self.growth = np.sum(G)
+		self.is_empty = (self.mass < EPSILON)
+		self.is_full = (np.sum(A[0,:]) + np.sum(A[h-1,:]) + np.sum(A[:,0]) + np.sum(A[:,w-1]) > 0)
+		if self.is_empty:
+			return
+
+		AX = A * X;  AY = A * Y
+		m01 = self.moments['m01'] = np.sum(AX)
+		m10 = self.moments['m10'] = np.sum(AY)
+		m11 = self.moments['m11'] = np.sum(AX * Y)
+		m02 = self.moments['m02'] = np.sum(AX * X)
+		m20 = self.moments['m20'] = np.sum(AY * Y)
+		g01 = self.moments['g01'] = np.sum(G * X)
+		g10 = self.moments['g10'] = np.sum(G * Y)
+		self.m_center = (MIDX+MIDY*1j) if (self.mass  ==0) else (self.moments['m01']/self.mass   + self.moments['m10']/self.mass   * 1j)
+		self.g_center = (MIDX+MIDY*1j) if (self.growth==0) else (self.moments['g01']/self.growth + self.moments['g10']/self.growth * 1j)
+		mu11 = self.moments['mu11'] = m11 - self.m_center.real * m01
+		mu20 = self.moments['mu20'] = m20 - self.m_center.real * m10
+		mu02 = self.moments['mu02'] = m02 - self.m_center.imag * m01
+		mu11_11 = mu11 * 2
+		mu20_02 = mu20 - mu02
+		self.inertia = mu20 + mu02
+		t3 = (mu20 + mu02) / 2 / m00
+		t4 = np.sqrt(mu11_11**2 + mu20_02**2) / 2 / m00
+		self.shape_major_axis = t3 + t4
+		self.shape_minor_axis = t3 - t4
+		self.shape_eccentricity = np.sqrt(1 - self.shape_minor_axis / self.shape_major_axis)
+		self.shape_compactness = m00 / (mu20 + mu02)
+		self.shape_orientation = np.arctan2(mu11_11, mu20_02) / 2 *180/np.pi
+
+		self.mg_dist = np.absolute(self.m_center - self.g_center)
+		if self.m_last_center is not None and self.m_last_angle is not None:
+			self.m_shift = np.absolute(self.m_center - self.m_last_center)
+			self.m_total_shift += self.m_shift
+			self.m_angle = np.angle(self.m_center - self.m_last_center) *180/np.pi if self.m_shift >= EPSILON else 0
+			self.m_rotate = self.m_angle - self.m_last_angle
+			self.m_rotate = (self.m_rotate + 540) % 360 - 180
+			if self.automaton.gen <= 2:
+				self.m_rotate = 0
+		self.m_last_center = self.m_center
+		self.m_last_angle = self.m_angle
+
+	STAT_HEADER = ["n (gen)","t (time,s)","m (mass,mg)","g (growth,mg/s)","I (moment of inertia)","s (speed,mm/s)","w (angular speed,deg/s)","d (mass-growth distance,mm)"]
+	def add_stat(self):
+		R, T = [self.world.params[k] for k in ('R', 'T')]
+		v = [self.automaton.gen, self.automaton.time, self.mass/R/R, self.growth/R/R, self.inertia/R/R, self.m_shift*T, self.m_rotate*T, self.mg_dist]
+		if self.series is None:
+			self.series = [v]
+		else:
+			self.series = np.vstack((self.series, v))
+
+	def recurrence_plot(self, e=0.1, steps=10):
+		''' https://stackoverflow.com/questions/33650371/recurrence-plot-in-python '''
+		d = scipy.spatial.distance.pdist(self.series[:, None])
+		d = np.floor(d/e)
+		d[d>steps] = steps
+		Z = scipy.spatial.distance.squareform(d)
+		return Z
+
 class Lenia:
 	def __init__(self):
 		self.is_run = True
 		self.is_once = False
+		self.is_show = True
+		self.show_what = 0
+		self.is_fps = True
+		self.fps = None
+		self.last_time = None
 		self.fore = None
 		self.back = None
 		self.is_layered = False
 		self.is_auto_center = False
 		self.is_auto_load = False
-		self.show_what = 0
+		self.trace_dir = 0
+		self.trace_small = False
+		''' http://hslpicker.com/ '''
 		self.colormaps = [
-			self.create_colormap(256, np.array([[0,0,0,0,4,8,8,8,4],[0,0,4,8,8,8,4,0,0],[4,8,8,8,4,0,0,0,0]])), #BCYR
-			self.create_colormap(256, np.array([[0,0,4,8,8,8,4,0,0],[2,4,6,8,4,0,0,0,0],[0,0,0,0,4,8,8,8,4]])), #GYPB
-			self.create_colormap(256, np.array([[4,8,8,8,4,0,0,0,0],[0,0,0,0,4,8,6,4,2],[2,4,6,8,4,0,0,0,0]])), #RYGG
-			self.create_colormap(256, np.array([[0,3,4,5,8],[0,3,4,5,8],[0,3,4,5,8]]))] #B/W
+			self.create_colormap(256, np.array([[0,0,4],[0,0,8],[0,4,8],[0,8,8],[4,8,4],[8,8,0],[8,4,0],[8,0,0],[4,0,0]])), #BCYR
+			self.create_colormap(256, np.array([[0,2,0],[0,4,0],[4,6,0],[8,8,0],[8,4,4],[8,0,8],[4,0,8],[0,0,8],[0,0,4]])), #GYPB
+			self.create_colormap(256, np.array([[4,0,2],[8,0,4],[8,0,6],[8,0,8],[4,4,4],[0,8,0],[0,6,0],[0,4,0],[0,2,0]])), #PPGG
+			self.create_colormap(256, np.array([[4,4,6],[2,2,4],[2,4,2],[4,6,4],[6,6,4],[4,2,2]])), #BGYR
+			self.create_colormap(256, np.array([[4,6,4],[2,4,2],[4,4,2],[6,6,4],[6,4,6],[2,2,4]])), #GYPB
+			self.create_colormap(256, np.array([[6,6,4],[4,4,2],[4,2,4],[6,4,6],[4,6,6],[2,4,2]])), #YPCG
+			self.create_colormap(256, np.array([[0,0,0],[3,3,3],[4,4,4],[5,5,5],[8,8,8]]))] #B/W
 		self.colormap_id = 0
 		self.set_colormap()
 		self.excess_key = None
@@ -391,6 +514,7 @@ class Lenia:
 		self.read_animals()
 		self.world = Board((SIZEY, SIZEX))
 		self.automaton = Automaton(self.world)
+		self.analyzer = Analyzer(self.automaton)
 		self.recorder = Recorder(self.world)
 		self.clear_transform()
 		self.create_window()
@@ -398,10 +522,6 @@ class Lenia:
 
 	def clear_transform(self):
 		self.tx = {'preshift':[0, 0], 'shift':[0, 0], 'rotate':0, 'R':self.world.params['R'], 'flip':-1}
-
-	def check_auto_load(self):
-		if self.is_auto_load:
-			self.load_part(self.fore, is_set_params=False)
 
 	def read_animals(self):
 		with open('animals.json', encoding='utf-8') as file:
@@ -451,6 +571,7 @@ class Lenia:
 					self.automaton.calc_kernel()
 				self.world.clear(value_min=self.value_min)
 				self.automaton.reset()
+				self.analyzer.reset()
 			self.clear_transform()
 			for i in range(repeat):
 				if is_random:
@@ -461,6 +582,10 @@ class Lenia:
 					self.tx['shift'][0] = np.random.randint(h1 + h) - h1//2
 					self.tx['flip'] = np.random.randint(3) - 1
 				self.world.add_transformed(part, self.tx, value_min=self.value_min)
+
+	def check_auto_load(self):
+		if self.is_auto_load:
+			self.load_part(self.fore, is_set_params=False)
 
 	def transform_world(self):
 		if self.is_layered:
@@ -479,21 +604,25 @@ class Lenia:
 		self.automaton.calc_kernel()
 
 	def center_world(self, is_loop=False):
-		if np.sum(self.world.cells) < EPSILON:
+		if self.analyzer.mass < EPSILON:
 			return
-		cy, cx = snd.center_of_mass(self.world.cells)
+		c = self.analyzer.m_center * self.world.params['R']
+		cx, cy = c.real, c.imag
+		# cy, cx = snd.center_of_mass(self.world.cells)
 		if is_loop:
-			self.world.transform({'shift':[MIDY - cy, MIDX - cx]}, mode='S', is_world=True)
+			self.world.transform({'shift':[-cy, -cx]}, mode='S', is_world=True)
 		else:
-			self.tx['preshift'][0] += MIDY - cy
-			self.tx['preshift'][1] += MIDX - cx
+			self.tx['preshift'][0] += -cy
+			self.tx['preshift'][1] += -cx
 			self.transform_world()
+		self.analyzer.m_last_center = 0
 
 	def clear_world(self):
 		self.world.clear(value_min=self.value_min)
 		if self.is_layered:
 			self.back = copy.deepcopy(self.world)
 		self.automaton.reset()
+		self.analyzer.reset()
 
 	def random_world(self):
 		self.world.clear(value_min=self.value_min)
@@ -503,6 +632,32 @@ class Lenia:
 		if self.is_layered:
 			self.back = copy.deepcopy(self.world)
 		self.automaton.reset()
+		self.analyzer.reset()
+
+	def toggle_trace(self, dir, small):
+		if self.trace_dir == 0:
+			self.trace_dir = dir
+			self.trace_small = small
+			self.is_auto_center = True
+			self.is_auto_load = True
+		else:
+			self.trace_dir = 0
+
+	def stop_trace(self):
+		self.trace_dir = 0
+
+	def trace_params(self):
+		s = 's+' if self.trace_small else ''
+		if self.trace_dir == +1:
+			if self.analyzer.is_empty:
+				self.key_press(s+'w', is_auto_press=True)
+			elif self.analyzer.is_full:
+				self.key_press(s+'q', is_auto_press=True)
+		elif self.trace_dir == -1:
+			if self.analyzer.is_empty:
+				self.key_press(s+'a', is_auto_press=True)
+			elif self.analyzer.is_full:
+				self.key_press(s+'s', is_auto_press=True)
 
 	def create_window(self):
 		self.win = tk.Tk()
@@ -526,19 +681,20 @@ class Lenia:
 		return self.canvas.create_image(c*SIZEY, r*SIZEX, image=photo, anchor=tk.NW)
 
 	def create_colormap(self, nval, colors):
-		ncol = colors.shape[1]
-		colors = np.hstack((colors, np.array([[0],[0],[0]])))
+		ncol = colors.shape[0]
+		colors = np.vstack((colors, np.array([[0,0,0]])))
 		v = np.repeat(range(nval), 3)  # [0 0 0 1 1 1 ... 255 255 255]
 		i = np.array(list(range(3)) * nval)  # [0 1 2 0 1 2 ... 0 1 2]
 		k = v / (nval-1) * (ncol-1)  # interpolate between 0 .. ncol-1
 		k1 = k.astype(int)
-		c1, c2 = colors[i,k1], colors[i,k1+1]
+		c1, c2 = colors[k1,i], colors[k1+1,i]
 		c = (k-k1) * (c2-c1) + c1  # interpolate between c1 .. c2
 		return np.rint(c / 8 * 255).astype(int).tolist()
 
 	def set_colormap(self):
 		self.colormap_demo = np.tile(np.arange(SIZEX), (1, SIZEY)) / SIZEX
 
+	SHOW_WHAT_NUM = 7
 	def show_world(self):
 		change_range = 1.4 if self.automaton.clip_mode>=1 else 1
 		if self.show_what==0: self.show_panel(self.panel1, self.world.cells, 0, 1)
@@ -546,7 +702,9 @@ class Lenia:
 		elif self.show_what==2: self.show_panel(self.panel1, self.automaton.field, -1, 1)
 		elif self.show_what==3: self.show_panel(self.panel1, self.automaton.change, -change_range, change_range)
 		elif self.show_what==4: self.show_panel(self.panel1, self.automaton.kernel, 0, 1)
-		elif self.show_what==5: self.show_panel(self.panel1, self.colormap_demo, 0, 1)
+		elif self.show_what==5: self.show_panel(self.panel1, self.automaton.fftshift(np.log(np.absolute(self.automaton.world_FFT))), 0, 5)
+		elif self.show_what==6: self.show_panel(self.panel1, self.automaton.fftshift(np.log(np.absolute(self.automaton.potential_FFT))), 0, 5)
+		elif self.show_what==7: self.show_panel(self.panel1, self.colormap_demo, 0, 1)
 		# if not self.kernel_updated:
 			# self.show_panel(self.panel4, self.kernel, 0, 1)
 			# self.kernel_updated = True
@@ -562,36 +720,23 @@ class Lenia:
 		if self.recorder.is_recording and self.is_run:
 			self.recorder.record_frame(img)
 		if self.is_save_image:
-			self.recorder.save_image(img)
+			self.recorder.save_image(img, filename='saved')
 			self.is_save_image = False
 		photo = ImageTk.PhotoImage(image=img)
 		# photo = tk.PhotoImage(width=SIZEX, height=SIZEY)
 		self.canvas.itemconfig(panel, image=photo)
 		self.win.update()
 
-	def loop(self):
-		self.is_loop = True
-		self.win.after(0, self.run)
-		self.win.protocol('WM_DELETE_WINDOW', self.close)
-		self.win.mainloop()
-
-	def close(self):
-		self.is_loop = False
-		if self.recorder.is_recording:
-			self.recorder.finish_record()
-		self.win.destroy()
-
-	def run(self):
-		while self.is_loop:
-			if self.is_run or self.is_once:
-				self.automaton.calc_once()
-				if self.is_auto_center:
-					self.center_world(is_loop=True)
-				if not self.is_layered:
-					self.back = None
-					self.clear_transform()
-				self.is_once = False
-			self.show_world()
+	def calc_fps(self):
+		if self.automaton.gen == 0:
+			self.last_time = time.time()
+			self.fps = None
+		elif self.automaton.gen % FPS_FREQ == 0:
+			this_time = time.time()
+			self.fps = FPS_FREQ / (this_time - self.last_time)
+			self.last_time = this_time
+		else:
+			self.fps = None
 
 	SHIFT_KEYS = {'asciitilde':'quoteleft', 'exclam':'1', 'at':'2', 'numbersign':'3', 'dollar':'4', 'percent':'5', 'asciicircum':'6', 'ampersand':'7', 'asterisk':'8', 'parenleft':'9', 'parenright':'0', 'underscore':'-', 'plus':'equal', \
 		'braceleft':'bracketleft', 'braceright':'bracketright', 'bar':'backslash', 'colon':'semicolon', 'quotedbl':'quoteright', 'less':'comma', 'greater':'period', 'question':'slash'}
@@ -611,10 +756,10 @@ class Lenia:
 			s = 's+'
 		self.key_press(s + c + a + key)
 
-	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'P4(a)', '4':'PV1', '5':'2S1:5', '6':'2S2:2', '7':'P6,3s', '8':'2PG1:2', '9':'3H3', '0':'~gldr', \
+	ANIMAL_KEY_LIST = {'1':'O2(a)', '2':'OG2', '3':'OV2', '4':'P4(a)', '5':'2S1:5', '6':'2S2:2', '7':'P6,3s', '8':'2PG1:2', '9':'3H3', '0':'~gldr', \
 		's+1':'3G:4', 's+2':'3GG', 's+3':'K5(4,1)', 's+4':'K7(4,3)', 's+5':'K9(5,4)', 's+6':'3A5', 's+7':'4A6', 's+8':'2D10', 's+9':'4F12', 's+0':'~ggun', \
 		'c+1':'4Q(5,5,5,5):3', 'c+2':'2P7:2', 'c+3':'3GA', 'c+4':'K4(2,2):3', 'c+5':'K4(2,2):5', 'c+6':'3R4(3,3,2):4', 'c+7':'3F6', 'c+8':'4F7', 'c+9':'', 'c+0':'bbug'}
-	def key_press(self, k):
+	def key_press(self, k, is_auto_press=False):
 		global status
 		inc_or_dec = 1 if 's+' not in k else -1
 		inc_10_or_1 = 0 if 'c+' in k else (10 if 's+' not in k else 1)
@@ -627,12 +772,16 @@ class Lenia:
 		is_ignore = False
 		self.excess_key = None
 		self.update = None
+		if not is_auto_press:
+			self.stop_trace()
+
 		if k in ['escape']: self.close()
 		elif k in ['enter', 'return']: self.is_run = not self.is_run
 		elif k in [' ', 'space']: self.is_once = not self.is_once; self.is_run = False
+		elif k in ['quoteright']: self.is_show = not self.is_show
 		elif k in ['quoteleft', 's+quoteleft']: self.colormap_id = (self.colormap_id + inc_or_dec) % len(self.colormaps); self.set_colormap()
-		elif k in ['tab', 's+tab']: self.show_what = (self.show_what + inc_or_dec) % 5
-		elif k in ['c+tab']: self.show_what = 0 if self.show_what == 5 else 5
+		elif k in ['tab', 's+tab']: self.show_what = (self.show_what + inc_or_dec) % self.SHOW_WHAT_NUM
+		elif k in ['c+tab']: self.show_what = 0 if self.show_what == self.SHOW_WHAT_NUM else self.SHOW_WHAT_NUM
 		elif k in ['q', 's+q']: self.world.params['m'] += inc_10_or_1 * 0.001; self.check_auto_load(); self.update = 'param'
 		elif k in ['a', 's+a']: self.world.params['m'] -= inc_10_or_1 * 0.001; self.check_auto_load(); self.update = 'param'
 		elif k in ['w', 's+w']: self.world.params['s'] += inc_10_or_1 * 0.0001; self.check_auto_load(); self.update = 'param'
@@ -641,6 +790,9 @@ class Lenia:
 		elif k in ['g', 's+g']: self.world.params['T'] = max(1, self.world.params['T'] *  double_or_not + inc_or_not); self.update = 'param'
 		elif k in ['r', 's+r']: self.tx['R'] = max(1, self.tx['R'] + inc_10_or_1); self.transform_world(); self.update = 'param'
 		elif k in ['f', 's+f']: self.tx['R'] = max(1, self.tx['R'] - inc_10_or_1); self.transform_world(); self.update = 'param'
+		elif k in ['c+q', 's+c+q']: self.toggle_trace(+1, 's+' in k)
+		elif k in ['c+a', 's+c+a']: self.toggle_trace(-1, 's+' in k)
+		elif k in ['c+w', 's+c+w']: pass  # randam params and/or peaks
 		elif k in ['c+r']: self.tx['R'] = DEF_R; self.transform_world(); self.update = 'param'
 		elif k in ['c+f']: self.tx['R'] = self.fore.params['R'] if self.fore else DEF_R; self.transform_world(); self.update = 'param'
 		elif k in ['c+y', 's+c+y']: self.automaton.kn = (self.automaton.kn + inc_or_dec - 1) % len(self.automaton.kernel_core) + 1; self.update = 'kn'
@@ -661,9 +813,9 @@ class Lenia:
 		elif k in ['m']: self.center_world()
 		elif k in ['c+m']: self.center_world(); self.is_auto_center = not self.is_auto_center
 		elif k in ['backspace', 'delete']: self.clear_world()
-		elif k in ['c', 's+c']: self.load_animal_id(self.animal_id - inc_1_or_10); self.update = 'anm'
-		elif k in ['v', 's+v']: self.load_animal_id(self.animal_id + inc_1_or_10); self.update = 'anm'
-		elif k in ['z']: self.load_animal_id(self.animal_id); self.update = 'anm'
+		elif k in ['c', 's+c']: self.load_animal_id(self.animal_id - inc_1_or_10); self.update = 'animal'
+		elif k in ['v', 's+v']: self.load_animal_id(self.animal_id + inc_1_or_10); self.update = 'animal'
+		elif k in ['z']: self.load_animal_id(self.animal_id); self.update = 'animal'
 		elif k in ['x', 's+x']: self.load_part(self.fore, is_random=True, is_replace=False, repeat=inc_1_or_10)
 		elif k in ['b']: self.random_world()
 		elif k in ['n']: pass # random last seed
@@ -674,20 +826,24 @@ class Lenia:
 			A.crop(value_min=self.value_min)
 			data = A.to_data(is_shorten='s+' not in k)
 			if k.endswith('c'):
-				self.clipboard_st = json.dumps(data, separators=(',', ':'))
+				self.clipboard_st = json.dumps(data, separators=(',', ':'), ensure_ascii=False)
 				self.win.clipboard_clear()
 				self.win.clipboard_append(self.clipboard_st)
 				# print(self.clipboard_st)
 				status.append("> board saved to clipboard")
 			elif k.endswith('s'):
-				with open('last_animal.rle', 'w', encoding='utf8') as file:
+				with open('saved.rle', 'w', encoding='utf8') as file:
 					file.write('#N '+A.long_name()+'\n')
 					file.write('x = '+str(A.cells.shape[1])+', y = '+str(A.cells.shape[0])+', rule = Lenia('+A.params2st()+')\n')
 					file.write(data['cells'].replace('$','$\n')+'\n')
 				data['cells'] = data['cells'].split('$')
-				with open('last_animal.json', 'w') as file:
-					json.dump(data, file, indent=4)
-				status.append("> board saved to files '{}' & '{}'".format('last_animal.json', 'last_animal.rle'))
+				with open('saved.json', 'w', encoding='utf-8') as file:
+					json.dump(data, file, indent=4, ensure_ascii=False)
+				with open('saved.csv', 'w', newline='\n') as file:
+					writer = csv.writer(file)
+					writer.writerow(self.analyzer.STAT_HEADER)
+					writer.writerows(self.analyzer.series)
+				status.append("> data and image saved to 'saved.*'")
 				self.is_save_image = True
 		elif k in ['c+v']:
 			self.clipboard_st = self.win.clipboard_get()
@@ -697,10 +853,10 @@ class Lenia:
 		elif k in ['c+g']:
 			if self.automaton.has_gpu:
 				self.automaton.is_gpu = not self.automaton.is_gpu
-		elif k in [m+str(i) for i in range(10) for m in ['','s+','c+','s+c+']]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k)); self.update = 'anm'
+		elif k in [m+str(i) for i in range(10) for m in ['','s+','c+','s+c+']]: self.load_animal_code(self.ANIMAL_KEY_LIST.get(k)); self.update = 'animsl'
 		elif k in ['comma']: self.update = 'param'
-		elif k in ['period']: self.update = 'anm'
-		elif k in ['slash']: m = self.menu.children[self.menu_values['anm'][0]].children['!menu']; m.post(self.win.winfo_rootx(), self.win.winfo_rooty())
+		elif k in ['period']: self.update = 'animal'
+		elif k in ['slash']: m = self.menu.children[self.menu_values['animal'][0]].children['!menu']; m.post(self.win.winfo_rootx(), self.win.winfo_rooty())
 		elif k.endswith('_l') or k.endswith('_r'): is_ignore = True
 		else: self.excess_key = k
 
@@ -708,6 +864,7 @@ class Lenia:
 			self.world.params = {k:round(x, ROUND) if type(x)==float else x for (k,x) in self.world.params.items()}
 			self.tx = {k:round(x, ROUND) if type(x)==float else x for (k,x) in self.tx.items()}
 			self.automaton.calc_once(is_update=False)
+			self.analyzer.calc_stat()
 			self.update_menu()
 			self.update_info()
 
@@ -781,8 +938,8 @@ class Lenia:
 		elif name=='clp': return ["Hard","Soft"][self.automaton.clip_mode]
 		elif name=='stp': return ["Single","Multi"][self.automaton.is_multistep]
 		elif name=='inv': return ["Normal","Inverted"][self.world.params['T']<0]
-		elif name=='clr': return ["Blue/red","Green/purple","Red/green","Black/white"][self.colormap_id]
-		elif name=='shw': return ["World","Potential","Field","Change","Kernel","Colormap"][self.show_what]
+		elif name=='clr': return ["Vivid blue/red","Vivid green/purple","Vivid red/green","Pale blue/red","Pale green/purple","Pale yellow/green","Black/white"][self.colormap_id]
+		elif name=='shw': return ["World","Potential","Field","Change","Kernel","World FFT","Potential FFT","Colormap"][self.show_what]
 	def update_menu(self):
 		for name in self.menu_vars:
 			self.menu_vars[name].set(self.get_nested_attr(name))
@@ -805,7 +962,7 @@ class Lenia:
 		items2 = ['^automaton.is_gpu|Use GPU|c+G' if self.automaton.has_gpu else '|No GPU available|']
 		self.menu.add_cascade(label='Main', menu=self.create_submenu(self.menu, [
 			'^is_run|Start...|Return', '|Once|Space'] + items2 + [None,
-			'@shw|Show|Tab', '|Show colormap|c+Tab', '@clr|Colors|QuoteLeft|`', None,
+			'^is_show|Show...|Quoteright|\'', '@shw|Show|Tab', '|Show colormap|c+Tab', '@clr|Colors|QuoteLeft|`', None,
 			'|Save data & image|c+S', '^recorder.is_recording|Record video...|c+D', None,
 			'|Quit|Escape']))
 
@@ -846,20 +1003,28 @@ class Lenia:
 			'|Reset|c+R', '|Set to animal\'s|c+F',
 			'#T|Time units', '|Faster (T + 10)|T', '|Slower (T - 10)|G', None,
 			'#b|Kernel peaks', ('Change', items2), None,
-			'|[Options]|', '|Random params|Backslash|\\', 
+			'|Trace params backward|c+Q', '|Trace params forward|c+A', 
+			'|Random params|c+w', '|Random params & peaks|s+c+w', None,
+			'|[Options]|', 
 			'@kn|Kernel|c+Y', '@gn|Field|c+U',
 			'@clp|Clip|c+I', '@stp|Step|c+O', '@inv|Invert|c+P']))
 
 	def update_info(self):
 		global status
-		if status:
-			print("\n".join(status))
-			status = []
+		# if status:
+			# print("\n".join(status))
+			# status = []
 		if self.excess_key:
 			print(self.excess_key)
-		if self.update:
-			if self.update == 'param':
-				info_st = 'Params: ' + self.world.params2st()
+		if self.update or status:
+			info_st = ""
+			if status:
+				info_st = "\n".join(status)
+				status = []
+			elif self.update == 'param':
+				info_st = self.world.params2st()
+			elif self.update == 'animal':
+				info_st = self.world.long_name()
 			elif self.update in self.menu_values:
 				info_st = "{text} [{value}]".format(text=self.VALUE_TEXT[self.update], value=self.get_value_text(self.update))
 			self.info.config(text=info_st)
@@ -871,9 +1036,53 @@ class Lenia:
 		self.info.config(text="")
 		self.clear_job = None
 
+	def loop(self):
+		self.is_loop = True
+		self.win.after(0, self.run)
+		self.win.protocol('WM_DELETE_WINDOW', self.close)
+		self.win.mainloop()
+
+	def close(self):
+		self.is_loop = False
+		if self.recorder.is_recording:
+			self.recorder.finish_record()
+		self.win.destroy()
+
+	def run(self):
+		while self.is_loop:
+			if self.is_run or self.is_once:
+				if self.is_fps:
+					self.calc_fps()
+					# if self.fps:
+						# print('fps: {0:.1f}'.format(self.fps))
+				self.automaton.calc_once()
+				self.analyzer.calc_stat()
+				self.analyzer.add_stat()
+				if self.is_auto_center:
+					self.center_world(is_loop=True)
+				if not self.is_layered:
+					self.back = None
+					self.clear_transform()
+				self.is_once = False
+				if self.trace_dir != 0:
+					self.trace_params()
+			if self.is_show:
+				self.show_world()
+			else:
+				self.win.update()
+
 if __name__ == '__main__':
 	lenia = Lenia()
 	lenia.load_animal_code(lenia.ANIMAL_KEY_LIST['2'])
 	lenia.update_menu()
 	lenia.loop()
 
+
+''' for PyOpenCL in Windows:
+install Intel OpenCL SDK
+install Microsoft Visual C++ Build Tools
+in Visual Studio Native Tools command prompt
+> set INCLUDE=%INCLUDE%;%INTELOCLSDKROOT%include
+> set LIB=%LIB%;%INTELOCLSDKROOT%lib\x86
+> pip3 install pyopencl
+'''
