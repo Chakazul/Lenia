@@ -16,6 +16,7 @@ Fastest version, minimalist layout. Now with GPU support! (Needs Python3 and var
 
 ![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python3.png)
 ![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python4.png)
+![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Python-stats-2.png)
 
 ## Matlab Version
 
