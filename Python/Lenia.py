@@ -1,5 +1,6 @@
 import numpy as np                          # pip3 install numpy
-import scipy.ndimage as snd                 # pip3 install scipy
+import scipy                                # pip3 install scipy
+import scipy.ndimage as snd
 import reikna.fft, reikna.cluda             # pip3 install pyopencl/pycuda, reikna
 from PIL import Image, ImageTk, ImageDraw   # pip3 install pillow
 try: import tkinter as tk
