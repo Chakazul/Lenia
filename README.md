@@ -1,8 +1,11 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 # Lenia
+
+*** Ready to run in your Chrome browser!  https://chakazul.github.io/Lenia/JavaScript/Lenia.html
+
 Lenia is a 2D [cellular automata](https://en.wikipedia.org/wiki/Cellular_automaton) with continuous space, time and states. It produces a huge variety of interesting life forms.
 
-There are various versions available. Python, Matlab and JavaScript versions are real-time, interactive, and equipped with statistics tools. Jupyter and R versions are non-interactive and just for demonstration purposes.
+There are various versions available. Python, Matlab and web (JavaScript) versions are real-time, interactive, and equipped with statistics tools. Jupyter and R versions are non-interactive and just for demonstration purposes.
 
 ## Animation short
 
