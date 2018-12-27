@@ -1074,9 +1074,6 @@ class Lenia:
 		for n in name.split('.'):
 			obj = getattr(obj, n)
 		return obj
-	def update_menu_value(self, name, value):
-		info = self.menu_values[name]
-		self.menu.children[info[0]].entryconfig(info[1], label='{text} [{value}]'.format(text=text if text else info[2], value=value))
 	def get_value_text(self, name):
 		if name=='anm': return '#'+str(self.animal_id+1)+' '+self.world.long_name()
 		elif name=='kn': return ["Polynomial","Exponential","Step","Staircase"][(self.world.params.get('kn') or self.automaton.kn) - 1]
