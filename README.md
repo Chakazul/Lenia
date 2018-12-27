@@ -1,7 +1,9 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
-# Lenia
 
-*** Ready to run in your Chrome browser!  https://chakazul.github.io/Lenia/JavaScript/Lenia.html
+* [2018-12-27] Preprint paper "Lenia - Biology of Artificial Life" available at https://arxiv.org/abs/1812.05433
+* [2018-07-19] Ready to run in your Chrome browser!  https://chakazul.github.io/Lenia/JavaScript/Lenia.html
+
+# Lenia
 
 Lenia is a 2D [cellular automata](https://en.wikipedia.org/wiki/Cellular_automaton) with continuous space, time and states. It produces a huge variety of interesting life forms.
 
