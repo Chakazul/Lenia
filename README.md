@@ -10,11 +10,12 @@ Lenia is a 2D [cellular automata](https://en.wikipedia.org/wiki/Cellular_automat
 
 There are various versions available. Python, Matlab and web (JavaScript) versions are real-time, interactive, and equipped with statistics tools. Jupyter and R versions are non-interactive and just for demonstration purposes.
 
-## Animation short
+## Showcase video
 
-[![](https://i.vimeocdn.com/video/710070839_100x75.webp)](https://vimeo.com/277328815) Lenia at Vimeo
+[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video.png)](https://vimeo.com/277328815)
 
-[![](https://img.youtube.com/vi/iE46jKYcI4Y/2.jpg)](https://youtu.be/iE46jKYcI4Y) Lenia at YouTube
+[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/277328815)
+[![Watch in YouTube](https://chakazul.github.io/icons/youtube.png)](https://youtu.be/iE46jKYcI4Y)
 
 ## Python Version
 
