@@ -1,5 +1,6 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 
+* [2019-05-04] Preprint paper updated on arXiv, accepted by Complex Systems journal and waiting for publication  
 * [2018-12-27] Preprint paper "Lenia - Biology of Artificial Life" available at https://arxiv.org/abs/1812.05433
 * [2018-07-19] Ready to run in your Chrome browser!  https://chakazul.github.io/Lenia/JavaScript/Lenia.html
 
