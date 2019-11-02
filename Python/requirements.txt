@@ -2,6 +2,6 @@ funcsigs==1.0.2
 Mako==1.0.7
 MarkupSafe==1.0
 numpy==1.14.5
-Pillow==5.2.0
+Pillow==6.2.0
 reikna==0.7.0
 scipy==1.1.0
