@@ -1,0 +1,20 @@
+LeniaND.py
+n-Dimensional Lenia
+Major update: 2020-01-13
+
+Major changes:
+- Added n-dimensional mode, e.g. 3D, 4D... (run 'python LeniaND.py -h' for help)
+- Added polar mode, auto detect radial symmetry & rotational speed
+- Added periodogram (5th stat mode)
+- Added auto find new patterns
+- Added async rate and noise rate
+- Added 200+ new lifeforms (also 30+ lifeforms for 3D, 2 lifeforms for 4D)
+
+Minor changes:
+- Added switch between basic/advanced menu
+- Added color map "Paul Tol's Rainbow"
+- Use bitmap font "bitocra-13"
+- Rearranged menu and shortcut keys
+
+Known issues:
+- Polar mode issues in lo-res (-p4) and after More peaks (;)
