@@ -1,5 +1,6 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 
+* [2020-01-13] Major update in Python version: n-Dimensional Lenia. Includes: 3D+, polar analysis, periodogram, 200+ new lifeforms
 * [2019-12-14] Lifeforms found in 3D and 4D Lenia 
 https://twitter.com/BertChakovsky/status/1211010576631005184
 https://twitter.com/BertChakovsky/status/1209177017096163328
