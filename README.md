@@ -1,5 +1,6 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 
+* [2020-07-14] Paper published in ALIFE 2020 Proceedings at https://www.mitpressjournals.org/doi/abs/10.1162/isal_a_00297
 * [2020-05-07] Preprint paper "Lenia and Expanded Universe" for ALIFE2020 available at https://arxiv.org/abs/2005.03742
 * [2020-01-13] Major update in Python version: n-Dimensional Lenia. List of changes see [LeniaND changes.txt](Python/LeniaND%20changes.txt)
 * [2019-12-14] Lifeforms found in 3D and 4D Lenia 
