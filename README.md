@@ -1,5 +1,6 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 
+* [2020-07-22] Companion video "Lenia: Expanded Universe" available at https://youtu.be/HT49wpyux-k
 * [2020-07-14] Paper published in ALIFE 2020 Proceedings at https://www.mitpressjournals.org/doi/abs/10.1162/isal_a_00297
 * [2020-05-07] Preprint paper "Lenia and Expanded Universe" for ALIFE2020 available at https://arxiv.org/abs/2005.03742
 * [2020-01-13] Major update in Python version: n-Dimensional Lenia. List of changes see [LeniaND changes.txt](Python/LeniaND%20changes.txt)
@@ -19,8 +20,11 @@ There are various versions available. Python, Matlab and web (JavaScript) versio
 
 ## Showcase video
 
-[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video.png)](https://vimeo.com/277328815)
+[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video-expanded.png)](https://vimeo.com/440386996)
+[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/440386996)
+[![Watch in YouTube](https://chakazul.github.io/icons/youtube.png)](https://youtu.be/HT49wpyux-k)
 
+[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video.png)](https://vimeo.com/277328815)
 [![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/277328815)
 [![Watch in YouTube](https://chakazul.github.io/icons/youtube.png)](https://youtu.be/iE46jKYcI4Y)
 
