@@ -20,13 +20,13 @@ There are various versions available. Python, Matlab and web (JavaScript) versio
 
 ## Showcase video
 
-[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video2.png)](https://vimeo.com/440386996)
-[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/440386996)
+[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video2.png)](https://youtu.be/HT49wpyux-k)
 [![Watch in YouTube](https://chakazul.github.io/icons/youtube.png)](https://youtu.be/HT49wpyux-k)
+[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/440386996)
 
-[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video.png)](https://vimeo.com/277328815)
-[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/277328815)
+[![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video.png)](https://youtu.be/iE46jKYcI4Y)
 [![Watch in YouTube](https://chakazul.github.io/icons/youtube.png)](https://youtu.be/iE46jKYcI4Y)
+[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/277328815)
 
 ## Python Version
 
