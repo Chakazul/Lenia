@@ -32,3 +32,14 @@ or
 ```bash
 sudo apt-get install tk
 ```
+
+or if Tkinter module not found on Ubuntu:
+
+```bash
+sudo apt-get install python3-tk
+```
+
+For python 3.6:
+```bash
+sudo apt-get install python3.6-tk
+```
