@@ -1,0 +1,107 @@
+{"code":"5N7KKM","name":"**M limus","cname":"seed:31E5286E",
+"params":[
+{"R":24,"T":1,"b":"1","m":0.22,"s":0.0628,"kn":1,"gn":1,"h":0.22,"r":0.87,"c":[0,0]},
+{"R":24,"T":10,"b":"1","m":0.351,"s":0.1539,"kn":1,"gn":1,"h":0.58,"r":0.52,"c":[0,0]},
+{"R":24,"T":10,"b":"1,1/4","m":0.177,"s":0.0333,"kn":1,"gn":1,"h":0.39,"r":0.58,"c":[0,0]},
+{"R":24,"T":10,"b":"0,1","m":0.126,"s":0.0525,"kn":1,"gn":1,"h":0.37,"r":0.89,"c":[1,1]},
+{"R":24,"T":10,"b":"1","m":0.437,"s":0.0797,"kn":1,"gn":1,"h":0.78,"r":0.78,"c":[1,1]},
+{"R":24,"T":10,"b":"3/4,1","m":0.234,"s":0.0369,"kn":1,"gn":1,"h":0.87,"r":0.79,"c":[1,1]},
+{"R":24,"T":10,"b":"1","m":0.179,"s":0.0653,"kn":1,"gn":1,"h":0.63,"r":1.0,"c":[2,2]},
+{"R":24,"T":10,"b":"1","m":0.489,"s":0.1213,"kn":1,"gn":1,"h":0.42,"r":0.64,"c":[2,2]},
+{"R":24,"T":10,"b":"1","m":0.419,"s":0.1775,"kn":1,"gn":1,"h":0.91,"r":0.96,"c":[2,2]},
+{"R":24,"T":10,"b":"11/12,1","m":0.341,"s":0.1388,"kn":1,"gn":1,"h":0.45,"r":0.66,"c":[0,1]},
+{"R":24,"T":10,"b":"3/4,1","m":0.469,"s":0.1054,"kn":1,"gn":1,"h":0.6,"r":0.69,"c":[0,2]},
+{"R":24,"T":10,"b":"1,11/12","m":0.369,"s":0.0721,"kn":1,"gn":1,"h":0.78,"r":0.61,"c":[1,0]},
+{"R":24,"T":10,"b":"1","m":0.219,"s":0.0898,"kn":1,"gn":1,"h":0.54,"r":0.81,"c":[1,2]},
+{"R":24,"T":10,"b":"1/6,1","m":0.385,"s":0.1102,"kn":1,"gn":1,"h":0.55,"r":0.81,"c":[2,0]},
+{"R":24,"T":10,"b":"1","m":0.208,"s":0.0749,"kn":1,"gn":1,"h":0.6,"r":0.71,"c":[2,1]}
+],
+"cells":["42.$42.$42.$24.pLN16.$19.S3.sUuQtFX15.$18.qLqM2.sNwJwGrT3.KpV11.$16.HqErAS.sDvKxBvCqVM2.sEtLqJpR9.$8.rI8.FB.pKtNvRwFuLsDpM.BvJwCvMuB9.$6.LsE11.ApStHuEvQuGrN2.pJwF2yCqB9.$5.qMN5.B7.qRsHsMuTsPL2.pLuIwHrI3.pB6.$4.qA5.rLuLuBtBrSqPqCqLrKsKqAqKuDtSqA3.IqBpB3.sQtI6.$3.pD4.uBwUxExFxAwWxCxHxGwTwErXsMuCvRtGH9.xBtS6.$2.FI3.yE3yLyM6yOxFxMxExCwFtHR8.pQxNtI6.$2.S2.pHxE12yOyKyBxPwKtSqF6.ArSuHvSsG6.$.D2.pKvA9yOxTxB3yOyNyDxCvAsFpD3.DrUuQvQuKtBqA6.$.F.SsQ9yOtVqFvJ5yOyFwAtTsGqTqVsJuKvRvQuKsOqVK6.$2.AqJwE8yOuUCAuV5yOxOwDvCvGuPvAvSwBvJuAsSrMqAL6.$2.MsF8yOyCsW2.uA2yOsTsNtCuLvMvTxJwVwQwHvNuFsQrUrHpWpSA5.$2.VtH8yOyGuUqKGHC3.LqOtRvVyIxTxBwEvCtRsCrGqPpKrB6.$2.UtA9yOxOrM7.NrVvEyCyHxOwRvOtWrOpQBFqA6.$2.KrRyG8yOxH8.CqTuGxFyOyCxLwJuGqH2.QV6.$2.BqBvN8yOsT8.BqHtQyByOyHxSwRuA3.N7.$3.UsV6yOxQuF9.CpTvE2yOyKxTwPtC3.C7.$3.EqWxW3yOyJwRuHqA10.rH4yOxUwLrO11.$4.pVvS3yOyAvVtCM8.rPwAxS4yOyBwLV11.$4.pIuI3yOyFwMuApT7.tVyLyAxM4yOyFwRqP11.$4.VtC3yOyNxPvXsW6.pA8yOyHxGuIqC10.$4.HrOxO3yOyKxTwGsT5.uV7yOyLyFxUwQtNF9.$5.pMuQ5yOyEwTtTqKIUsMxV6yOyKyC2yDxHuKpF9.$5.DqTvW5yOyJxLvXuUuXwR6yOyMyGyHyKyHxHuG10.$6.FqQvN6yOyNyKyM11yOyLwO11.$7.ApRuByK18yOwB4.B7.$9.WsCwA16yOwWpN3.rT8.$10.IqHtIvUxT12yOxVrO3.sJ9.$11.CpFqVsDsWtUvDwU6yOxCuFqP2.IqX10.$10.DJNUXpBpHpRqIrDrSrXrSrEqIpJH2.LpQ11.$11.ATpIpAB3.BCBA5.GM12.$13.ALRI10.B14.!",
+"42.$42.$42.$42.$42.$42.$42.$42.$42.$14.pXpG26.$13.vEuTD26.$12.yEyLwEpE26.$10.pI3yOxXsL26.$3.FV3.NrBxG4yOvN26.$.EpPrTsXqX2.qSuL5yOxFqD25.$.pDrUuMwEuWrNrOvI6yOyAsK25.$BpWtIwRxJxGxO6yOwUyOyIuKpQ24.$CqGuHyOyHyL6yOvRuLyHyNvXsNpH23.$AqCuQ6yOyNyOyHuLuJyNyOwStMpU23.$.pLuG6yOyMyOyFvOwFyOyMwGsUpP23.$.RtA9yOxRxWyNwXuDrWrHM22.$.DrGwJ9yOyFwPtSrNrUuAuHrWqCqMtAqK17.$2.pPtAwR8yOxIuEqPpSsHwC2yOxOxJvOtLrVrJsB3.E10.$2.MqKsJwW7yOwLsNVpAsTxG3yOyLwKuOvFvTwUxPxNwOuH10.$3.WpVtE7yOwLsQpFpNtIxU3yOwApT.XvKyNyIxFvOqX10.$3.FPqTxB6yOxIuMrOrMuNyF2yOxQpK3.uByOxVvQsT11.$4.CpEtK6yOyJxAvEuUwP3yOuI4.xEyOxCtR12.$5.CqAvJ6yOyMxXxSyH2yOxTtE3.tOyOyMwFpL12.$6.ApPtX11yOxOuUrPqUuR2yOyDtI13.$8.KqFtTwBxDyL6yOyCxDwPxS3yOwH14.$10.WqStFvIxH6yOyL4yOxNqA14.$11.MqDsUvR10yOxUtG15.$12.OrSvHyL8yOyGvOqX15.$12.DrIuPxAyM7yOxRvLpN15.$12.DqKsUuMvGvKwCyF4yOyGwOsQqBE13.$13.TqDrJsEsJsPtUwT4yOxTvAsSqJ13.$14.CNpHqAqPrOtIvSxUyKxKvOtNrJpB13.$17.BLpDqBrCrUrXrIqJpFF14.!",
+"15.FRTK23.$13.qOsOtCtGtCsKrDX21.$12.uHvXwJwMwKwBvFtSrLB20.$10.QwKyEyIyJyIyExTxAvOtHqC20.$9.qJxB6yOyNyAwSuSsEpO19.$8.qWwO8yOyMxQwEuMsXrLpU17.$6.AqLvH10yOyJxRwWwBvAtQsApX15.$5.BpLtHyD12yOyLyCxKwLvDtLrI14.$5.NrDuQ15yOyMyBxEvWpG14.$4.DpIrSvB17yOyGtC15.$4.FpPrQuO17yOwAI15.$4.JpLrDtRxI15yOxJN16.$4.HpAqJsPvW14yOxLpX6.rCuMrWK7.$.2B.BOpUrTuMyF12yOvSqI5.pKxExQwJuFrB7.$.DE2.JpMrGtRxH10yOyIuFqB5.pR2yOyJxOvUtCpS6.$.EF2.FpEqTtEwS9yOxKtWqD5.XxJ3yOyHwXuQsApSH4.$.FG2.BUqJsRwH8yOxKuNrF5.pTvW4yOyNxQvWuCsRrUqUpI2.$.EG3.NpWsEvN7yOyFwCtEpV4.pWvN6yOyDxAvWvFuMtJrOpC.$.CF3.GpKrLuLyK6yOyDwBtFpX3.JuE7yOyLxVxJwXwHvBtCqK.$.AC3.BWqQtFwG6yOyLwWuKrPW.NsOyH8yOyLyFxWxIwEuDrH.$2.A4.LpVrVuDwM6yOyAwIuKsPsAtJwX11yOyKxWwUuTrVH$7.CpCqOsGuBwK6yOyDxHwNwLxN13yOyGxFvGsFL$8.JpKqSsIuLxB23yOyKxMvMsHG$9.MpMqVsQuPwGxN21yOyLxPvNsB.$9.ANpOqWsHtLuLvTxW19yOyMxPvGqV.$10.AOpOqQrPsNtTvTyM18yOyMxLsO2.$11.AOpMqKrJsLuFwO18yOyLtG3.$12.ALpIqHrJsUuXxQ16yOyHtD4.$14.HpBqCrKtIvV15yOwXsP5.$15.CSpUrItJvRyA5yOyLyHyL3yOxQvNsHC5.$16.AMpLqQrWsXtPuA3uCuFuLuTvDvFuTtPrMR6.$17.AIUpHpPpWqEqLqRrArHrOrUsArWrKqHQ7.$19.CEGJNRXpEpKpOpRpSpOpCH8.$23.ABDGIKLKGA9.$42.$20.BCA19.$18.ADH2KIFC16.$20.CE2GFDB15.!"]},
+
+c = cells.size
+d = '$' in cells[0]
+ks = 
+kx = 
+
+
+{"code":"5N7KKM","name":"**M limus","cname":"seed:31E5286E",
+"settings":{"d":2,"c":3,"ks":3,"kx":1,"R":24,"T":1,"kn":1,"gn":1},
+"params":[
+{"b":"1","m":0.22,"s":0.0628,"h":0.22,"r":0.87,"c":[0,0]},
+{"b":"1","m":0.351,"s":0.1539,"h":0.58,"r":0.52,"c":[0,0]},
+{"b":"1,1/4","m":0.177,"s":0.0333,"h":0.39,"r":0.58,"c":[0,0]},
+{"b":"0,1","m":0.126,"s":0.0525,"h":0.37,"r":0.89,"c":[1,1]},
+{"b":"1","m":0.437,"s":0.0797,"h":0.78,"r":0.78,"c":[1,1]},
+{"b":"3/4,1","m":0.234,"s":0.0369,"h":0.87,"r":0.79,"c":[1,1]},
+{"b":"1","m":0.179,"s":0.0653,"h":0.63,"r":1.0,"c":[2,2]},
+{"b":"1","m":0.489,"s":0.1213,"h":0.42,"r":0.64,"c":[2,2]},
+{"b":"1","m":0.419,"s":0.1775,"h":0.91,"r":0.96,"c":[2,2]},
+{"b":"11/12,1","m":0.341,"s":0.1388,"h":0.45,"r":0.66,"c":[0,1]},
+{"b":"3/4,1","m":0.469,"s":0.1054,"h":0.6,"r":0.69,"c":[0,2]},
+{"b":"1,11/12","m":0.369,"s":0.0721,"h":0.78,"r":0.61,"c":[1,0]},
+{"b":"1","m":0.219,"s":0.0898,"h":0.54,"r":0.81,"c":[1,2]},
+{"b":"1/6,1","m":0.385,"s":0.1102,"h":0.55,"r":0.81,"c":[2,0]},
+{"b":"1","m":0.208,"s":0.0749,"h":0.6,"r":0.71,"c":[2,1]}
+],
+"cells":["42.$42.$42.$24.pLN16.$19.S3.sUuQtFX15.$18.qLqM2.sNwJwGrT3.KpV11.$16.HqErAS.sDvKxBvCqVM2.sEtLqJpR9.$8.rI8.FB.pKtNvRwFuLsDpM.BvJwCvMuB9.$6.LsE11.ApStHuEvQuGrN2.pJwF2yCqB9.$5.qMN5.B7.qRsHsMuTsPL2.pLuIwHrI3.pB6.$4.qA5.rLuLuBtBrSqPqCqLrKsKqAqKuDtSqA3.IqBpB3.sQtI6.$3.pD4.uBwUxExFxAwWxCxHxGwTwErXsMuCvRtGH9.xBtS6.$2.FI3.yE3yLyM6yOxFxMxExCwFtHR8.pQxNtI6.$2.S2.pHxE12yOyKyBxPwKtSqF6.ArSuHvSsG6.$.D2.pKvA9yOxTxB3yOyNyDxCvAsFpD3.DrUuQvQuKtBqA6.$.F.SsQ9yOtVqFvJ5yOyFwAtTsGqTqVsJuKvRvQuKsOqVK6.$2.AqJwE8yOuUCAuV5yOxOwDvCvGuPvAvSwBvJuAsSrMqAL6.$2.MsF8yOyCsW2.uA2yOsTsNtCuLvMvTxJwVwQwHvNuFsQrUrHpWpSA5.$2.VtH8yOyGuUqKGHC3.LqOtRvVyIxTxBwEvCtRsCrGqPpKrB6.$2.UtA9yOxOrM7.NrVvEyCyHxOwRvOtWrOpQBFqA6.$2.KrRyG8yOxH8.CqTuGxFyOyCxLwJuGqH2.QV6.$2.BqBvN8yOsT8.BqHtQyByOyHxSwRuA3.N7.$3.UsV6yOxQuF9.CpTvE2yOyKxTwPtC3.C7.$3.EqWxW3yOyJwRuHqA10.rH4yOxUwLrO11.$4.pVvS3yOyAvVtCM8.rPwAxS4yOyBwLV11.$4.pIuI3yOyFwMuApT7.tVyLyAxM4yOyFwRqP11.$4.VtC3yOyNxPvXsW6.pA8yOyHxGuIqC10.$4.HrOxO3yOyKxTwGsT5.uV7yOyLyFxUwQtNF9.$5.pMuQ5yOyEwTtTqKIUsMxV6yOyKyC2yDxHuKpF9.$5.DqTvW5yOyJxLvXuUuXwR6yOyMyGyHyKyHxHuG10.$6.FqQvN6yOyNyKyM11yOyLwO11.$7.ApRuByK18yOwB4.B7.$9.WsCwA16yOwWpN3.rT8.$10.IqHtIvUxT12yOxVrO3.sJ9.$11.CpFqVsDsWtUvDwU6yOxCuFqP2.IqX10.$10.DJNUXpBpHpRqIrDrSrXrSrEqIpJH2.LpQ11.$11.ATpIpAB3.BCBA5.GM12.$13.ALRI10.B14.!","42.$42.$42.$42.$42.$42.$42.$42.$42.$14.pXpG26.$13.vEuTD26.$12.yEyLwEpE26.$10.pI3yOxXsL26.$3.FV3.NrBxG4yOvN26.$.EpPrTsXqX2.qSuL5yOxFqD25.$.pDrUuMwEuWrNrOvI6yOyAsK25.$BpWtIwRxJxGxO6yOwUyOyIuKpQ24.$CqGuHyOyHyL6yOvRuLyHyNvXsNpH23.$AqCuQ6yOyNyOyHuLuJyNyOwStMpU23.$.pLuG6yOyMyOyFvOwFyOyMwGsUpP23.$.RtA9yOxRxWyNwXuDrWrHM22.$.DrGwJ9yOyFwPtSrNrUuAuHrWqCqMtAqK17.$2.pPtAwR8yOxIuEqPpSsHwC2yOxOxJvOtLrVrJsB3.E10.$2.MqKsJwW7yOwLsNVpAsTxG3yOyLwKuOvFvTwUxPxNwOuH10.$3.WpVtE7yOwLsQpFpNtIxU3yOwApT.XvKyNyIxFvOqX10.$3.FPqTxB6yOxIuMrOrMuNyF2yOxQpK3.uByOxVvQsT11.$4.CpEtK6yOyJxAvEuUwP3yOuI4.xEyOxCtR12.$5.CqAvJ6yOyMxXxSyH2yOxTtE3.tOyOyMwFpL12.$6.ApPtX11yOxOuUrPqUuR2yOyDtI13.$8.KqFtTwBxDyL6yOyCxDwPxS3yOwH14.$10.WqStFvIxH6yOyL4yOxNqA14.$11.MqDsUvR10yOxUtG15.$12.OrSvHyL8yOyGvOqX15.$12.DrIuPxAyM7yOxRvLpN15.$12.DqKsUuMvGvKwCyF4yOyGwOsQqBE13.$13.TqDrJsEsJsPtUwT4yOxTvAsSqJ13.$14.CNpHqAqPrOtIvSxUyKxKvOtNrJpB13.$17.BLpDqBrCrUrXrIqJpFF14.!","15.FRTK23.$13.qOsOtCtGtCsKrDX21.$12.uHvXwJwMwKwBvFtSrLB20.$10.QwKyEyIyJyIyExTxAvOtHqC20.$9.qJxB6yOyNyAwSuSsEpO19.$8.qWwO8yOyMxQwEuMsXrLpU17.$6.AqLvH10yOyJxRwWwBvAtQsApX15.$5.BpLtHyD12yOyLyCxKwLvDtLrI14.$5.NrDuQ15yOyMyBxEvWpG14.$4.DpIrSvB17yOyGtC15.$4.FpPrQuO17yOwAI15.$4.JpLrDtRxI15yOxJN16.$4.HpAqJsPvW14yOxLpX6.rCuMrWK7.$.2B.BOpUrTuMyF12yOvSqI5.pKxExQwJuFrB7.$.DE2.JpMrGtRxH10yOyIuFqB5.pR2yOyJxOvUtCpS6.$.EF2.FpEqTtEwS9yOxKtWqD5.XxJ3yOyHwXuQsApSH4.$.FG2.BUqJsRwH8yOxKuNrF5.pTvW4yOyNxQvWuCsRrUqUpI2.$.EG3.NpWsEvN7yOyFwCtEpV4.pWvN6yOyDxAvWvFuMtJrOpC.$.CF3.GpKrLuLyK6yOyDwBtFpX3.JuE7yOyLxVxJwXwHvBtCqK.$.AC3.BWqQtFwG6yOyLwWuKrPW.NsOyH8yOyLyFxWxIwEuDrH.$2.A4.LpVrVuDwM6yOyAwIuKsPsAtJwX11yOyKxWwUuTrVH$7.CpCqOsGuBwK6yOyDxHwNwLxN13yOyGxFvGsFL$8.JpKqSsIuLxB23yOyKxMvMsHG$9.MpMqVsQuPwGxN21yOyLxPvNsB.$9.ANpOqWsHtLuLvTxW19yOyMxPvGqV.$10.AOpOqQrPsNtTvTyM18yOyMxLsO2.$11.AOpMqKrJsLuFwO18yOyLtG3.$12.ALpIqHrJsUuXxQ16yOyHtD4.$14.HpBqCrKtIvV15yOwXsP5.$15.CSpUrItJvRyA5yOyLyHyL3yOxQvNsHC5.$16.AMpLqQrWsXtPuA3uCuFuLuTvDvFuTtPrMR6.$17.AIUpHpPpWqEqLqRrArHrOrUsArWrKqHQ7.$19.CEGJNRXpEpKpOpRpSpOpCH8.$23.ABDGIKLKGA9.$42.$20.BCA19.$18.ADH2KIFC16.$20.CE2GFDB15.!"]},
+
+
+{"code":{"id":"5N7KKM","eng":"**M limus","chi":"","seed":"31E5286E"},
+"settings":{"d":2,"c":3,"ks":3,"kx":1,"R":24,"T":1,"kn":1,"gn":1},
+"channels":["c0","c1","c2"],
+"kernels":{
+"k0": {"r":0.87,"m":0.22, "s":0.0628,"b":"[1]"},
+"k1": {"r":0.52,"m":0.351,"s":0.1539,"b":"[1]"},
+"k2": {"r":0.58,"m":0.177,"s":0.0333,"b":"[1,1/4]"},
+"k3": {"r":0.89,"m":0.126,"s":0.0525,"b":"[0,1]"},
+"k4": {"r":0.78,"m":0.437,"s":0.0797,"b":"[1]"},
+"k5": {"r":0.79,"m":0.234,"s":0.0369,"b":"[3/4,1]"},
+"k6": {"r":1.0, "m":0.179,"s":0.0653 "b":"[1]"},
+"k7": {"r":0.64,"m":0.489,"s":0.1213,"b":"[1]"},
+"k8": {"r":0.96,"m":0.419,"s":0.1775,"b":"[1]"},
+"k9": {"r":0.66,"m":0.341,"s":0.1388,"b":"[11/12,1]"},
+"k10":{"r":0.69,"m":0.469,"s":0.1054,"b":"[3/4,1]"},
+"k11":{"r":0.61,"m":0.369,"s":0.0721,"b":"[1,11/12]"},
+"k12":{"r":0.81,"m":0.219,"s":0.0898,"b":"[1]"},
+"k13":{"r":0.81,"m":0.385,"s":0.1102,"b":"[1/6,1]"},
+"k14":{"r":0.71,"m":0.208,"s":0.0749,"b":"[1]"}
+},
+"links":[
+{"type":"conv","source":"c0","target":"k0" }, {"type":"res","source":"k0","target":"c0","h":0.22 },
+{"type":"conv","source":"c0","target":"k1" }, {"type":"res","source":"k1","target":"c0","h":0.58 },
+{"type":"conv","source":"c0","target":"k2" }, {"type":"res","source":"k2","target":"c0","h":0.39 },
+{"type":"conv","source":"c1","target":"k3" }, {"type":"res","source":"k3","target":"c1","h":0.37 },
+{"type":"conv","source":"c1","target":"k4" }, {"type":"res","source":"k4","target":"c1","h":0.78 },
+{"type":"conv","source":"c1","target":"k5" }, {"type":"res","source":"k5","target":"c1","h":0.87 },
+{"type":"conv","source":"c2","target":"k6" }, {"type":"res","source":"k6","target":"c2","h":0.63 },
+{"type":"conv","source":"c2","target":"k7" }, {"type":"res","source":"k7","target":"c2","h":0.42 },
+{"type":"conv","source":"c2","target":"k8" }, {"type":"res","source":"k8","target":"c2","h":0.91 },
+{"type":"conv","source":"c0","target":"k9" }, {"type":"res","source":"k9","target":"c1","h":0.45 },
+{"type":"conv","source":"c0","target":"k10"}, {"type":"res","source":"k10","target":"c2","h":0.6 },
+{"type":"conv","source":"c1","target":"k11"}, {"type":"res","source":"k11","target":"c0","h":0.78},
+{"type":"conv","source":"c1","target":"k12"}, {"type":"res","source":"k12","target":"c2","h":0.54},
+{"type":"conv","source":"c2","target":"k13"}, {"type":"res","source":"k13","target":"c0","h":0.55},
+{"type":"conv","source":"c2","target":"k14"}, {"type":"res","source":"k14","target":"c1","h":0.6 }
+],
+"cells":["42.$42.$42.$24.pLN16.$19.S3.sUuQtFX15.$18.qLqM2.sNwJwGrT3.KpV11.$16.HqErAS.sDvKxBvCqVM2.sEtLqJpR9.$8.rI8.FB.pKtNvRwFuLsDpM.BvJwCvMuB9.$6.LsE11.ApStHuEvQuGrN2.pJwF2yCqB9.$5.qMN5.B7.qRsHsMuTsPL2.pLuIwHrI3.pB6.$4.qA5.rLuLuBtBrSqPqCqLrKsKqAqKuDtSqA3.IqBpB3.sQtI6.$3.pD4.uBwUxExFxAwWxCxHxGwTwErXsMuCvRtGH9.xBtS6.$2.FI3.yE3yLyM6yOxFxMxExCwFtHR8.pQxNtI6.$2.S2.pHxE12yOyKyBxPwKtSqF6.ArSuHvSsG6.$.D2.pKvA9yOxTxB3yOyNyDxCvAsFpD3.DrUuQvQuKtBqA6.$.F.SsQ9yOtVqFvJ5yOyFwAtTsGqTqVsJuKvRvQuKsOqVK6.$2.AqJwE8yOuUCAuV5yOxOwDvCvGuPvAvSwBvJuAsSrMqAL6.$2.MsF8yOyCsW2.uA2yOsTsNtCuLvMvTxJwVwQwHvNuFsQrUrHpWpSA5.$2.VtH8yOyGuUqKGHC3.LqOtRvVyIxTxBwEvCtRsCrGqPpKrB6.$2.UtA9yOxOrM7.NrVvEyCyHxOwRvOtWrOpQBFqA6.$2.KrRyG8yOxH8.CqTuGxFyOyCxLwJuGqH2.QV6.$2.BqBvN8yOsT8.BqHtQyByOyHxSwRuA3.N7.$3.UsV6yOxQuF9.CpTvE2yOyKxTwPtC3.C7.$3.EqWxW3yOyJwRuHqA10.rH4yOxUwLrO11.$4.pVvS3yOyAvVtCM8.rPwAxS4yOyBwLV11.$4.pIuI3yOyFwMuApT7.tVyLyAxM4yOyFwRqP11.$4.VtC3yOyNxPvXsW6.pA8yOyHxGuIqC10.$4.HrOxO3yOyKxTwGsT5.uV7yOyLyFxUwQtNF9.$5.pMuQ5yOyEwTtTqKIUsMxV6yOyKyC2yDxHuKpF9.$5.DqTvW5yOyJxLvXuUuXwR6yOyMyGyHyKyHxHuG10.$6.FqQvN6yOyNyKyM11yOyLwO11.$7.ApRuByK18yOwB4.B7.$9.WsCwA16yOwWpN3.rT8.$10.IqHtIvUxT12yOxVrO3.sJ9.$11.CpFqVsDsWtUvDwU6yOxCuFqP2.IqX10.$10.DJNUXpBpHpRqIrDrSrXrSrEqIpJH2.LpQ11.$11.ATpIpAB3.BCBA5.GM12.$13.ALRI10.B14.!","42.$42.$42.$42.$42.$42.$42.$42.$42.$14.pXpG26.$13.vEuTD26.$12.yEyLwEpE26.$10.pI3yOxXsL26.$3.FV3.NrBxG4yOvN26.$.EpPrTsXqX2.qSuL5yOxFqD25.$.pDrUuMwEuWrNrOvI6yOyAsK25.$BpWtIwRxJxGxO6yOwUyOyIuKpQ24.$CqGuHyOyHyL6yOvRuLyHyNvXsNpH23.$AqCuQ6yOyNyOyHuLuJyNyOwStMpU23.$.pLuG6yOyMyOyFvOwFyOyMwGsUpP23.$.RtA9yOxRxWyNwXuDrWrHM22.$.DrGwJ9yOyFwPtSrNrUuAuHrWqCqMtAqK17.$2.pPtAwR8yOxIuEqPpSsHwC2yOxOxJvOtLrVrJsB3.E10.$2.MqKsJwW7yOwLsNVpAsTxG3yOyLwKuOvFvTwUxPxNwOuH10.$3.WpVtE7yOwLsQpFpNtIxU3yOwApT.XvKyNyIxFvOqX10.$3.FPqTxB6yOxIuMrOrMuNyF2yOxQpK3.uByOxVvQsT11.$4.CpEtK6yOyJxAvEuUwP3yOuI4.xEyOxCtR12.$5.CqAvJ6yOyMxXxSyH2yOxTtE3.tOyOyMwFpL12.$6.ApPtX11yOxOuUrPqUuR2yOyDtI13.$8.KqFtTwBxDyL6yOyCxDwPxS3yOwH14.$10.WqStFvIxH6yOyL4yOxNqA14.$11.MqDsUvR10yOxUtG15.$12.OrSvHyL8yOyGvOqX15.$12.DrIuPxAyM7yOxRvLpN15.$12.DqKsUuMvGvKwCyF4yOyGwOsQqBE13.$13.TqDrJsEsJsPtUwT4yOxTvAsSqJ13.$14.CNpHqAqPrOtIvSxUyKxKvOtNrJpB13.$17.BLpDqBrCrUrXrIqJpFF14.!","15.FRTK23.$13.qOsOtCtGtCsKrDX21.$12.uHvXwJwMwKwBvFtSrLB20.$10.QwKyEyIyJyIyExTxAvOtHqC20.$9.qJxB6yOyNyAwSuSsEpO19.$8.qWwO8yOyMxQwEuMsXrLpU17.$6.AqLvH10yOyJxRwWwBvAtQsApX15.$5.BpLtHyD12yOyLyCxKwLvDtLrI14.$5.NrDuQ15yOyMyBxEvWpG14.$4.DpIrSvB17yOyGtC15.$4.FpPrQuO17yOwAI15.$4.JpLrDtRxI15yOxJN16.$4.HpAqJsPvW14yOxLpX6.rCuMrWK7.$.2B.BOpUrTuMyF12yOvSqI5.pKxExQwJuFrB7.$.DE2.JpMrGtRxH10yOyIuFqB5.pR2yOyJxOvUtCpS6.$.EF2.FpEqTtEwS9yOxKtWqD5.XxJ3yOyHwXuQsApSH4.$.FG2.BUqJsRwH8yOxKuNrF5.pTvW4yOyNxQvWuCsRrUqUpI2.$.EG3.NpWsEvN7yOyFwCtEpV4.pWvN6yOyDxAvWvFuMtJrOpC.$.CF3.GpKrLuLyK6yOyDwBtFpX3.JuE7yOyLxVxJwXwHvBtCqK.$.AC3.BWqQtFwG6yOyLwWuKrPW.NsOyH8yOyLyFxWxIwEuDrH.$2.A4.LpVrVuDwM6yOyAwIuKsPsAtJwX11yOyKxWwUuTrVH$7.CpCqOsGuBwK6yOyDxHwNwLxN13yOyGxFvGsFL$8.JpKqSsIuLxB23yOyKxMvMsHG$9.MpMqVsQuPwGxN21yOyLxPvNsB.$9.ANpOqWsHtLuLvTxW19yOyMxPvGqV.$10.AOpOqQrPsNtTvTyM18yOyMxLsO2.$11.AOpMqKrJsLuFwO18yOyLtG3.$12.ALpIqHrJsUuXxQ16yOyHtD4.$14.HpBqCrKtIvV15yOwXsP5.$15.CSpUrItJvRyA5yOyLyHyL3yOxQvNsHC5.$16.AMpLqQrWsXtPuA3uCuFuLuTvDvFuTtPrMR6.$17.AIUpHpPpWqEqLqRrArHrOrUsArWrKqHQ7.$19.CEGJNRXpEpKpOpRpSpOpCH8.$23.ABDGIKLKGA9.$42.$20.BCA19.$18.ADH2KIFC16.$20.CE2GFDB15.!"]},
+
+
+"links":[
+{"type":"c0-conv-k0" }, {"type":"k0-res-c0", "h":0.22},
+{"type":"c0-conv-k1" }, {"type":"k1-res-c0", "h":0.58},
+{"type":"c0-conv-k2" }, {"type":"k2-res-c0", "h":0.39},
+{"type":"c1-conv-k3" }, {"type":"k3-res-c1", "h":0.37},
+{"type":"c1-conv-k4" }, {"type":"k4-res-c1", "h":0.78},
+{"type":"c1-conv-k5" }, {"type":"k5-res-c1", "h":0.87},
+{"type":"c2-conv-k6" }, {"type":"k6-res-c2", "h":0.63},
+{"type":"c2-conv-k7" }, {"type":"k7-res-c2", "h":0.42},
+{"type":"c2-conv-k8" }, {"type":"k8-res-c2", "h":0.91},
+{"type":"c0-conv-k9" }, {"type":"k9-res-c1", "h":0.45},
+{"type":"c0-conv-k10"}, {"type":"k10-res-c2","h":0.6 },
+{"type":"c1-conv-k11"}, {"type":"k11-res-c0","h":0.78},
+{"type":"c1-conv-k12"}, {"type":"k12-res-c2","h":0.54},
+{"type":"c2-conv-k13"}, {"type":"k13-res-c0","h":0.55},
+{"type":"c2-conv-k14"}, {"type":"k14-res-c1","h":0.6 }
+],
