@@ -1,5 +1,8 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 
+**For full version list, see [Timeline in Lenia portal](https://chakazul.github.io/lenia.html)
+
+* [2020-10-13] Update Python version with multi-kernel and multi-channel extensions (v3.4 LeniaNDK.py, v3.5 LeniaNDKC.py). To see the most advanced Lenia patterns, run "python LeniaNDKC.py -c3 -k3", and press "B"
 * [2020-07-22] Companion video "Lenia: Expanded Universe" available at https://youtu.be/HT49wpyux-k
 * [2020-07-14] Paper published in ALIFE 2020 Proceedings at https://www.mitpressjournals.org/doi/abs/10.1162/isal_a_00297
 * [2020-05-07] Preprint paper "Lenia and Expanded Universe" for ALIFE2020 available at https://arxiv.org/abs/2005.03742
@@ -21,12 +24,12 @@ There are various versions available. Python, Matlab and web (JavaScript) versio
 ## Showcase video
 
 [![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video2.png)](https://youtu.be/HT49wpyux-k)
-[![Watch in YouTube](https://chakazul.github.io/icons/youtube.png)](https://youtu.be/HT49wpyux-k)
-[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/440386996)
+[![Watch in YouTube](https://chakazul.github.io/icons/icon-youtube.png)](https://youtu.be/HT49wpyux-k)
+[![Watch in Vimeo](https://chakazul.github.io/icons/icon-vimeo.png)](https://vimeo.com/440386996)
 
 [![screen cap](https://github.com/Chakazul/Lenia/blob/master/Screencap/Video.png)](https://youtu.be/iE46jKYcI4Y)
-[![Watch in YouTube](https://chakazul.github.io/icons/youtube.png)](https://youtu.be/iE46jKYcI4Y)
-[![Watch in Vimeo](https://chakazul.github.io/icons/vimeo.png)](https://vimeo.com/277328815)
+[![Watch in YouTube](https://chakazul.github.io/icons/icon-youtube.png)](https://youtu.be/iE46jKYcI4Y)
+[![Watch in Vimeo](https://chakazul.github.io/icons/icon-vimeo.png)](https://vimeo.com/277328815)
 
 ## Python Version
 
