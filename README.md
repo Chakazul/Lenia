@@ -1,6 +1,6 @@
 ![](https://github.com/Chakazul/Lenia/blob/master/Screencap/icon2.png)
 
-**For full version list, see [Timeline in Lenia portal](https://chakazul.github.io/lenia.html)
+**For full version list, see [Timeline in Lenia portal](https://chakazul.github.io/lenia.html)**
 
 * [2020-10-13] Update Python version with multi-kernel and multi-channel extensions (v3.4 LeniaNDK.py, v3.5 LeniaNDKC.py). To see the most advanced Lenia patterns, run "python LeniaNDKC.py -c3 -k3", and press "B"
 * [2020-07-22] Companion video "Lenia: Expanded Universe" available at https://youtu.be/HT49wpyux-k
