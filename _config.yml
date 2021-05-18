@@ -1,1 +1,10 @@
 theme: jekyll-theme-cayman
+title: Lenia
+description: Continuous Cellular Automata
+plugins:
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: true
+include:
+  - index.md
