@@ -912,7 +912,7 @@ class Recorder:
         '-i','{input}',  # input pipe
         # '-an', '-vcodec','copy',  # output options (uncompressed 24-bit RGB, extremely large file, can no longer open in QuickTime)
         '-an', '-vcodec','libx264', '-pix_fmt','yuv420p', '-crf','1',  # output options (high quality H.264 encoding)
-        '{output}']  # ouput file
+        '{output}']  # output file
 
     def __init__(self, world):
         self.world = world
