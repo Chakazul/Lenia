@@ -43,3 +43,8 @@ For python 3.6:
 ```bash
 sudo apt-get install python3.6-tk
 ```
+**[Error]** libf77blas.so.3: cannot open shared object file: No such file or dircetory
+**[Solution]** Install libatlas3-base
+```bash
+sudo apt install libatlas3-base
+```
