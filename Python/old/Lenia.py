@@ -473,7 +473,7 @@ class Recorder:
 		'-i','{input}',  # input pipe
 		# '-an', '-vcodec','h264', '-pix_fmt','yuv420p', '-crf','1',  # output options
 		'-an', '-vcodec','copy',  # output options
-		'{output}']  # ouput file
+		'{output}']  # output file
 
 	def __init__(self, world):
 		self.world = world
