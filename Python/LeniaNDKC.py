@@ -618,7 +618,7 @@ class Analyzer:
         return max(arr, key=lambda x: (arr==x).sum() * (x>0))
 
     def calc_psd(self, X, fs, nfft=512, is_welch=True):
-        if X is None or X == []:
+        if X is None or not np.any(X) :
             return None, None
         psd_func = scipy.signal.welch if is_welch else scipy.signal.periodogram
         freq, psd = psd_func(X, fs=fs, nfft=nfft, axis=0)
@@ -2088,7 +2088,7 @@ class Lenia:
             self.draw_stats(is_draw_line=not is_xy, is_current_series=self.stats_mode in [1, 2, 3], is_small=self.stats_mode in [1])
 
     def draw_title(self, draw, line, title, color=255):
-        title_w, title_h = draw.textsize(title)
+        title_w = draw.textlength(title, font=self.font)
         title_x, title_y = MIDX*PIXEL-title_w//2, line*12+7
         draw.text((title_x,title_y), title, fill=self.get_color(color), font=self.font)
 
