@@ -701,7 +701,7 @@ class Analyzer:
 
                 self.density_sum = np.sum(self.polar_density, axis=0)
                 if self.density_ema is not None:
-                    self.density_ema = self.density_ema + self.ema_alpha * (self.density_sum - self.density_ema)
+                    self.density_ema += self.ema_alpha * (self.density_sum - self.density_ema)
                 else:
                     self.density_ema = self.density_sum
 
@@ -1803,7 +1803,7 @@ class Lenia:
         if 'colormap' in markers and self.markers_mode in [0,1,4,5] and self.polar_mode in [0,1]:
             #draw colormap
             x0, y0 = SIZEX*PIXEL-20, SIZEY*PIXEL-70
-            x1, y1 = SIZEX*PIXEL-15, 20
+            x1, y1 = SIZEX*PIXEL-15, SIZEY*PIXEL-20
             dy = (y1-y0)/253
             draw.rectangle([(x0-1,y0+1),(x1+1,y1-1)], outline=254)
             for c in range(253):
