@@ -676,7 +676,7 @@ class Analyzer:
 
                 self.density_sum = np.sum(self.polar_density, axis=0)
                 if self.density_ema is not None:
-                    self.density_ema = self.density_ema + self.ema_alpha * (self.density_sum - self.density_ema)
+                    self.density_ema += self.ema_alpha * (self.density_sum - self.density_ema)
                 else:
                     self.density_ema = self.density_sum
 
