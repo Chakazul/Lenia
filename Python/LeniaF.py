@@ -2672,7 +2672,7 @@ class Lenia:
             ncol = 256 if self.is_show_rgb() else 253
             bar_w = 3*3 if self.is_show_rgb() else 5
             x0, y0 = SIZEX*PIXEL-20, SIZEY*PIXEL-70
-            x1, y1 = SIZEX*PIXEL-21+bar_w, 20
+            x1, y1 = SIZEX*PIXEL-21+bar_w, SIZEY*PIXEL-20
             dy = (y1-y0)/ncol
             if self.is_show_rgb():
                 x0 = x1-CN*3+1

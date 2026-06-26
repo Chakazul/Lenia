@@ -618,7 +618,7 @@ class Analyzer:
         return max(arr, key=lambda x: (arr==x).sum() * (x>0))
 
     def calc_psd(self, X, fs, nfft=512, is_welch=True):
-        if X is None or X == []:
+        if X is None or not np.any(X) :
             return None, None
         psd_func = scipy.signal.welch if is_welch else scipy.signal.periodogram
         freq, psd = psd_func(X, fs=fs, nfft=nfft, axis=0)
@@ -751,7 +751,7 @@ class Analyzer:
 
                 self.density_sum = np.sum(self.polar_density, axis=0)
                 if self.density_ema is not None:
-                    self.density_ema = self.density_ema + self.ema_alpha * (self.density_sum - self.density_ema)
+                    self.density_ema += self.ema_alpha * (self.density_sum - self.density_ema)
                 else:
                     self.density_ema = self.density_sum
 
@@ -771,7 +771,7 @@ class Analyzer:
 
                     self.polar_rotate2 = self.polar_angle - self.last_polar_angle
                     self.polar_rotate2 = (self.polar_rotate2 + 3*max_angle) % (2*max_angle) - max_angle
-                    self.polar_angle = self.last_polar_angle + self.polar_rotate2
+                    self.polar_angle = self.last_polar_angle self.polar_rotate2
                 else:
                     self.polar_rotate = np.zeros(self.polar_FFT.shape)
                 self.last_polar_angle = self.polar_angle
@@ -2088,7 +2088,7 @@ class Lenia:
             self.draw_stats(is_draw_line=not is_xy, is_current_series=self.stats_mode in [1, 2, 3], is_small=self.stats_mode in [1])
 
     def draw_title(self, draw, line, title, color=255):
-        title_w, title_h = draw.textsize(title)
+        title_w = draw.textlength(title, font=self.font)
         title_x, title_y = MIDX*PIXEL-title_w//2, line*12+7
         draw.text((title_x,title_y), title, fill=self.get_color(color), font=self.font)
 
@@ -2278,7 +2278,7 @@ class Lenia:
             ncol = 256 if self.is_show_rgb() else 253
             bar_w = 3*3 if self.is_show_rgb() else 5
             x0, y0 = SIZEX*PIXEL-20, SIZEY*PIXEL-70
-            x1, y1 = SIZEX*PIXEL-21+bar_w, 20
+            x1, y1 = SIZEX*PIXEL-21+bar_w, SIZEY*PIXEL-20
             dy = (y1-y0)/ncol
             if self.is_show_rgb():
                 x0 = x1-CN*3+1
